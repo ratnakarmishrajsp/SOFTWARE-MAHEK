@@ -10,7 +10,10 @@ import {
   Download,
   X,
   Smartphone,
-  Zap
+  Zap,
+  Wifi,
+  WifiOff,
+  ArrowRight
 } from 'lucide-react';
 
 export const CloudSyncModal: React.FC = () => {
@@ -23,17 +26,20 @@ export const CloudSyncModal: React.FC = () => {
     isSyncModalOpen,
     setIsSyncModalOpen,
     exportBackupJSON,
-    importBackupJSON
+    importBackupJSON,
+    autoSyncEnabled,
+    setAutoSyncEnabled
   } = useApp();
 
-  const [inputSyncId, setInputSyncId] = useState(syncId);
+  const [inputSyncId, setInputSyncId] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   if (!isSyncModalOpen) return null;
 
   const currentSyncUrl = syncId
     ? `${window.location.origin}/?sync=${syncId}`
-    : `${window.location.origin}`;
+    : '';
 
   const handleCopyCode = () => {
     if (!syncId) return;
@@ -42,14 +48,21 @@ export const CloudSyncModal: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyLink = () => {
+    if (!currentSyncUrl) return;
+    navigator.clipboard.writeText(currentSyncUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
   const handleShareLinkWhatsApp = () => {
     const text = `🌸 *MAHEKH ERP - DEVICE PAIRING LINK* 🌸
 
-Click this link on your Mobile/Laptop to sync all P&L entries & Business Data automatically:
+Yeh link open karo apne Phone/Laptop pe — sab data automatically sync ho jayega:
 
 👉 ${currentSyncUrl}
 
-*(Or enter Sync Code manually: ${syncId})*`;
+*(Sync Code: ${syncId})*`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, '_blank');
@@ -71,101 +84,190 @@ Click this link on your Mobile/Laptop to sync all P&L entries & Business Data au
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="glass-panel w-full max-w-xl rounded-3xl border border-amber-500/30 p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-        {/* Modal Header */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="glass-panel w-full max-w-lg rounded-3xl border border-amber-500/30 p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+
+        {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500">
+            <div className={`p-2.5 rounded-2xl border ${syncId ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-500' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
               <Cloud className="w-6 h-6" />
             </div>
             <div>
               <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 Cross-Device Cloud Sync
-                {lastSyncedAt && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    Synced ({lastSyncedAt})
+                {syncId ? (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    <Wifi className="w-3 h-3" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                    <WifiOff className="w-3 h-3" />
+                    Not Set Up
                   </span>
                 )}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sync P&L & Stock data seamlessly between Laptop & Mobile Phone
+                {lastSyncedAt ? `Last synced: ${lastSyncedAt}` : 'Laptop aur Phone ka data ek jagah'}
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsSyncModalOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="mt-5 space-y-5">
-          {/* SECTION 1: INSTANT PAIRING TO MOBILE VIA WHATSAPP */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-amber-500/10 to-emerald-500/5 border border-emerald-500/30 space-y-3">
-            <div className="flex items-center justify-between">
+        <div className="mt-5 space-y-4">
+
+          {/* ─── STEP 1: Setup (only shown if no syncId yet) ─── */}
+          {!syncId && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/15 to-amber-600/5 border-2 border-amber-500/50 space-y-3">
               <div className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  Step 1: Open Data on Mobile Phone (1-Click WhatsApp Link)
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-500 text-slate-950 text-xs font-black">1</span>
+                <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                  Pehli Baar: Cloud Sync Enable Karo
                 </h4>
               </div>
-            </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              To see all Laptop data on your Phone, send this pairing link to your WhatsApp & open it on your Phone.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Apna data cloud pe upload karo. Iske baad <strong>Phone pe bhi automatically</strong> yahi data dikhega.
+              </p>
               <button
-                onClick={async () => {
-                  if (!syncId) {
-                    await pushToCloud();
-                  }
-                  handleShareLinkWhatsApp();
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                onClick={async () => { await pushToCloud(); }}
+                disabled={isSyncing}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-60"
               >
-                <Send className="w-4 h-4" />
-                <span>📱 Send Link to My Phone (WhatsApp)</span>
+                {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                <span>{isSyncing ? 'Uploading...' : '🚀 Abhi Cloud Sync Enable Karo'}</span>
               </button>
+            </div>
+          )}
 
-              {syncId && (
+          {/* ─── STEP 2 (or Step 1 if already synced): Share with Phone ─── */}
+          {syncId && (
+            <>
+              {/* Status card */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                    <Wifi className="w-4 h-4" />
+                    Auto-Sync Chal Raha Hai ✅
+                  </span>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[10px] text-slate-500">{autoSyncEnabled ? 'ON' : 'OFF'}</span>
+                    <div
+                      onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+                      className={`w-10 h-5 rounded-full transition-colors cursor-pointer ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform mt-0.5 ${autoSyncEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400/80">
+                  Jab bhi koi data add/edit hoga, 4 second me automatically cloud pe save ho jayega.
+                </p>
+              </div>
+
+              {/* Sync Code Box */}
+              <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Your Sync Code:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 dark:text-slate-200 truncate">
+                    {syncId}
+                  </code>
+                  <button
+                    onClick={handleCopyCode}
+                    className="shrink-0 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-amber-500 cursor-pointer transition-colors"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-slate-400" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ─── SHARE WITH PHONE (shown only when syncId exists) ─── */}
+          {syncId && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-blue-500/5 border border-emerald-500/30 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-black">2</span>
+                <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-emerald-600" />
+                  Phone Pe Open Karo
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Yeh link WhatsApp pe bhejo aur phone pe click karo — sab data phone pe bhi dikhne lagega.
+              </p>
+              <div className="flex gap-2">
                 <button
-                  onClick={handleCopyCode}
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-xs hover:border-amber-500"
+                  onClick={handleShareLinkWhatsApp}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-slate-400" />}
-                  <span>{copied ? 'Code Copied!' : 'Copy Sync Code'}</span>
+                  <Send className="w-4 h-4" />
+                  <span>📱 WhatsApp Pe Bhejo</span>
                 </button>
-              )}
-            </div>
-          </div>
+                <button
+                  onClick={handleCopyLink}
+                  className="px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-emerald-500 cursor-pointer transition-colors"
+                  title="Copy link"
+                >
+                  {copiedLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-slate-400" />}
+                </button>
+              </div>
 
-          {/* SECTION 2: CLOUD SYNC CODE CONTROLS */}
-          <div className="p-4 rounded-2xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Cloud className="w-4 h-4 text-amber-500" />
-                Step 2: Sync Code & Real-Time Sync
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                {syncId ? 'Key Active' : 'No Key Set'}
-              </span>
+              {/* Manual URL preview */}
+              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800">
+                <ArrowRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 truncate">{currentSyncUrl}</span>
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Cloud Sync Code (Paste from Laptop or Create New)
-              </label>
+          {/* ─── MANUAL PULL (for phone to get latest data) ─── */}
+          {syncId && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => pullFromCloud()}
+                disabled={isSyncing}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Abhi Sync Karo (Latest Data Lao)</span>
+              </button>
+              <button
+                onClick={() => pushToCloud()}
+                disabled={isSyncing}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 dark:text-amber-400 font-bold text-xs cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Force Upload</span>
+              </button>
+            </div>
+          )}
+
+          {/* ─── ENTER CODE FROM OTHER DEVICE ─── */}
+          {!syncId && (
+            <div className="p-4 rounded-2xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-500 text-white text-xs font-black">2</span>
+                <h4 className="text-xs font-black text-slate-900 dark:text-slate-100">
+                  Ya Dusre Device Ka Code Dalo
+                </h4>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Agar Laptop pe sync code bana chuka hai, toh phone pe yahan paste karo:
+              </p>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={inputSyncId}
                   onChange={e => setInputSyncId(e.target.value.trim())}
-                  placeholder="e.g. 019fa736-dd3f-76e6-af93-067880703ffb"
-                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-amber-500"
+                  placeholder="Sync code paste karo..."
+                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-amber-500"
                 />
                 <button
                   onClick={() => pullFromCloud(inputSyncId)}
@@ -173,39 +275,18 @@ Click this link on your Mobile/Laptop to sync all P&L entries & Business Data au
                   className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span>Pull Data</span>
+                  <span>Load</span>
                 </button>
               </div>
             </div>
+          )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-              <button
-                onClick={() => pushToCloud()}
-                disabled={isSyncing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-slate-950 font-bold text-xs shadow-sm cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>Upload Current Device Data to Cloud</span>
-              </button>
-
-              <button
-                onClick={() => pullFromCloud()}
-                disabled={isSyncing || !syncId}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>Fetch Latest Cloud Data</span>
-              </button>
-            </div>
-          </div>
-
-          {/* SECTION 3: BACKUP EXPORT & IMPORT */}
+          {/* ─── BACKUP / RESTORE ─── */}
           <div className="p-4 rounded-2xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
             <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               <Download className="w-4 h-4 text-blue-500" />
-              Offline JSON File Backup & Restore
+              Offline Backup (JSON File)
             </h4>
-
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={exportBackupJSON}
@@ -214,19 +295,14 @@ Click this link on your Mobile/Laptop to sync all P&L entries & Business Data au
                 <Download className="w-3.5 h-3.5" />
                 <span>Download Backup (.json)</span>
               </button>
-
               <label className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer">
                 <Upload className="w-3.5 h-3.5 text-amber-500" />
-                <span>Restore Backup File</span>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+                <span>Restore Backup</span>
+                <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
               </label>
             </div>
           </div>
+
         </div>
       </div>
     </div>

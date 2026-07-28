@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type {
   PLEntry,
   ExpenseEntry,
@@ -127,6 +127,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('mahekh_auto_sync') !== 'false';
   });
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
+  // Track whether we are currently pulling (to suppress auto-push during pull)
+  const isPullingRef = useRef(false);
+  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setSyncId = (id: string) => {
     setSyncIdState(id);
@@ -304,16 +307,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
+  // ── AUTO-PUSH: whenever data changes, silently push to cloud (debounced 4s) ──
+  const syncIdRef = useRef(syncId);
+  useEffect(() => { syncIdRef.current = syncId; }, [syncId]);
+
+  const autoSyncEnabled_Ref = useRef(autoSyncEnabled);
+  useEffect(() => { autoSyncEnabled_Ref.current = autoSyncEnabled; }, [autoSyncEnabled]);
+
+  useEffect(() => {
+    // Don't auto-push on very first mount (avoid overwriting good cloud data
+    // before the startup pull has a chance to run)
+    if (isPullingRef.current) return;
+    if (!syncIdRef.current) return;   // no sync code yet → skip
+    if (!autoSyncEnabled_Ref.current) return;
+
+    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+    autoSyncTimerRef.current = setTimeout(async () => {
+      if (!syncIdRef.current || isPullingRef.current) return;
+      // Silent push (no toast)
+      try {
+        const payload = {
+          plEntries,
+          expenses,
+          rawPurchases,
+          products,
+          inventory,
+          orders,
+          settings,
+          timestamp: new Date().toISOString()
+        };
+        await fetch(`https://jsonblob.com/api/jsonBlob/${syncIdRef.current}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        setLastSyncedAt(nowStr);
+        localStorage.setItem('mahekh_last_synced', nowStr);
+      } catch { /* silent fail – data is still in localStorage */ }
+    }, 4000);
+
+    return () => {
+      if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
+
+  // ── ON APP OPEN: silently pull latest cloud data if syncId saved ──
+  const pullFromCloudSilent = useCallback(async (id: string) => {
+    if (!id) return;
+    isPullingRef.current = true;
+    try {
+      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.plEntries)) setPlEntries(data.plEntries);
+        if (Array.isArray(data.expenses)) setExpenses(data.expenses);
+        if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
+        if (Array.isArray(data.products)) setProducts(data.products);
+        if (Array.isArray(data.inventory)) setInventory(data.inventory);
+        if (Array.isArray(data.orders)) setOrders(data.orders);
+        if (data.settings) setSettings(data.settings);
+        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        setLastSyncedAt(nowStr);
+        localStorage.setItem('mahekh_last_synced', nowStr);
+        showToast('Data Synced ✅', `Latest data loaded from Cloud (${data.plEntries?.length || 0} P&L entries)`, 'success');
+      }
+    } catch { /* offline – use localStorage */ } finally {
+      setTimeout(() => { isPullingRef.current = false; }, 1000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Check URL parameter ?sync=ID on page load
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const syncParam = urlParams.get('sync') || urlParams.get('syncId');
     if (syncParam) {
       setSyncId(syncParam);
-      pullFromCloud(syncParam);
+      pullFromCloudSilent(syncParam);
     } else if (syncId && autoSyncEnabled) {
-      pullFromCloud(syncId);
+      pullFromCloudSilent(syncId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const exportBackupJSON = () => {
