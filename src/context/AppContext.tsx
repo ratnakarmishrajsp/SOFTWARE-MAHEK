@@ -115,10 +115,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Cloud Sync State
-  const [syncId, setSyncIdState] = useState<string>(() => {
-    return localStorage.getItem('mahekh_sync_id') || '';
-  });
+  // ────────────────────────────────────────────────────────────────────────
+  // SERVER SYNC — uses /api.php on erp.mahekh.com (same Hostinger server)
+  // • pushToCloud  → POST /api.php  (saves to mahekh_data.json on server)
+  // • pullFromCloud → GET  /api.php  (reads mahekh_data.json from server)
+  // • Auto-pull on every app open
+  // • Auto-push (debounced 3s) on every data change
+  // ────────────────────────────────────────────────────────────────────────
+
+  const API_URL = '/api.php';   // Same-origin: erp.mahekh.com/api.php
+
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     return localStorage.getItem('mahekh_last_synced') || null;
@@ -127,19 +133,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('mahekh_auto_sync') !== 'false';
   });
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
-  // Track whether we are currently pulling (to suppress auto-push during pull)
-  const isPullingRef = useRef(false);
-  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const setSyncId = (id: string) => {
-    setSyncIdState(id);
-    localStorage.setItem('mahekh_sync_id', id);
-  };
-
+  // Legacy syncId — kept for interface compatibility, no longer required
+  const [syncId, setSyncIdState] = useState<string>('server');
+  const setSyncId = (id: string) => { setSyncIdState(id); };
   const setAutoSyncEnabled = (enabled: boolean) => {
     setAutoSyncEnabledState(enabled);
     localStorage.setItem('mahekh_auto_sync', enabled ? 'true' : 'false');
   };
+
+  // Refs to track in-flight pull so auto-push doesn't race
+  const isPullingRef = useRef(false);
+  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialMountRef = useRef(true);
 
   // Initialize state from LocalStorage
   const getInitial = <T,>(key: string, defaultVal: T): T => {
@@ -147,9 +153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed[key] !== undefined) {
-          return parsed[key];
-        }
+        if (parsed[key] !== undefined) return parsed[key];
       }
     } catch (e) {
       console.error(`Error loading ${key}`, e);
@@ -165,91 +169,120 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<OrderItem[]>(() => getInitial('orders', []));
   const [settings, setSettings] = useState<SystemSettings>(() => getInitial('settings', INITIAL_SETTINGS));
 
-  // Sync to LocalStorage on every state update
+  // ── Persist to localStorage on every change ─────────────────────────────
   useEffect(() => {
-    const dataToSave = {
-      plEntries,
-      expenses,
-      rawPurchases,
-      products,
-      inventory,
-      orders,
-      settings
-    };
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(
+      { plEntries, expenses, rawPurchases, products, inventory, orders, settings }
+    ));
   }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
 
-  // Apply dark/light theme class to document element
+  // ── Theme ────────────────────────────────────────────────────────────────
   useEffect(() => {
     localStorage.setItem('mahekh_theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
 
   const showToast = (title: string, message: string, type: ToastMessage['type'] = 'info') => {
-    const newToast: ToastMessage = {
-      id: Date.now().toString(),
-      title,
-      message,
-      type
-    };
+    const newToast: ToastMessage = { id: Date.now().toString(), title, message, type };
     setToasts(prev => [...prev, newToast]);
-
-    setTimeout(() => {
-      removeToast(newToast.id);
-    }, 4000);
+    setTimeout(() => removeToast(newToast.id), 5000);
   };
+  const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
-
-  // Cloud Sync Functions
-  const pushToCloud = async (overrideId?: string): Promise<boolean> => {
-    const targetId = overrideId || syncId;
+  // ── PUSH: save current state to server ───────────────────────────────────
+  const pushToCloud = useCallback(async (_overrideId?: string): Promise<boolean> => {
     setIsSyncing(true);
     try {
-      const payload = {
-        plEntries,
-        expenses,
-        rawPurchases,
-        products,
-        inventory,
-        orders,
-        settings,
-        timestamp: new Date().toISOString()
-      };
+      const payload = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        setLastSyncedAt(nowStr);
+        localStorage.setItem('mahekh_last_synced', nowStr);
+        showToast('✅ Server Sync Done', `Data saved to server (${nowStr})`, 'success');
+        return true;
+      }
+    } catch {
+      showToast('⚠️ Sync Error', 'Could not reach server. Data is safe in local storage.', 'warning');
+    } finally {
+      setIsSyncing(false);
+    }
+    return false;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
 
-      if (!targetId) {
-        // Create new JSON Blob on jsonblob.com
-        const res = await fetch('https://jsonblob.com/api/jsonBlob', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          const location = res.headers.get('Location');
-          const blobId = location ? location.split('/').pop() || '' : '';
-          if (blobId) {
-            setSyncId(blobId);
-            const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-            setLastSyncedAt(nowStr);
-            localStorage.setItem('mahekh_last_synced', nowStr);
-            showToast('Cloud Sync Active', `Created Device Sync Code: ${blobId}`, 'success');
-            return true;
+  // ── PULL: fetch latest data from server ──────────────────────────────────
+  const pullFromCloud = useCallback(async (_overrideId?: string, silent = false): Promise<boolean> => {
+    isPullingRef.current = true;
+    if (!silent) setIsSyncing(true);
+    try {
+      const res = await fetch(API_URL + '?t=' + Date.now()); // cache-bust
+      if (res.ok) {
+        const data = await res.json();
+        const serverHasData = Array.isArray(data.plEntries) && data.plEntries.length > 0;
+
+        if (serverHasData) {
+          if (Array.isArray(data.plEntries))    setPlEntries(data.plEntries);
+          if (Array.isArray(data.expenses))     setExpenses(data.expenses);
+          if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
+          if (Array.isArray(data.products))     setProducts(data.products);
+          if (Array.isArray(data.inventory))    setInventory(data.inventory);
+          if (Array.isArray(data.orders))       setOrders(data.orders);
+          if (data.settings)                    setSettings(data.settings);
+          const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          setLastSyncedAt(nowStr);
+          localStorage.setItem('mahekh_last_synced', nowStr);
+          if (!silent) {
+            showToast('✅ Data Loaded', `${data.plEntries.length} P&L entries fetched from server`, 'success');
           }
+          return true;
+        } else if (!silent) {
+          showToast('ℹ️ No Server Data', 'Server pe koi data nahi mila. Local data use ho raha hai.', 'info');
         }
-      } else {
-        // Update existing Blob
-        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${targetId}`, {
-          method: 'PUT',
+      }
+    } catch {
+      if (!silent) showToast('⚠️ Connection Error', 'Server se connect nahi ho saka.', 'warning');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => { isPullingRef.current = false; }, 500);
+    }
+    return false;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── AUTO-PULL on app open ─────────────────────────────────────────────────
+  useEffect(() => {
+    // Always pull from server when app opens — silent (no toast on success if server is empty)
+    pullFromCloud(undefined, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── AUTO-PUSH on every data change (debounced 3s) ────────────────────────
+  const autoSyncEnabledRef = useRef(autoSyncEnabled);
+  useEffect(() => { autoSyncEnabledRef.current = autoSyncEnabled; }, [autoSyncEnabled]);
+
+  useEffect(() => {
+    // Skip the very first mount (don't overwrite server data before pull completes)
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+    if (!autoSyncEnabledRef.current) return;
+    if (isPullingRef.current) return;   // Don't push while pulling
+
+    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+    autoSyncTimerRef.current = setTimeout(async () => {
+      if (isPullingRef.current) return;
+      try {
+        const payload = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
+        const res = await fetch(API_URL, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
@@ -257,140 +290,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
           setLastSyncedAt(nowStr);
           localStorage.setItem('mahekh_last_synced', nowStr);
-          showToast('Cloud Updated', `Uploaded data to Cloud (${nowStr})`, 'success');
-          return true;
         }
-      }
-    } catch (err) {
-      console.error('Cloud push failed', err);
-      showToast('Cloud Sync Error', 'Could not push to Cloud. Saved locally.', 'warning');
-    } finally {
-      setIsSyncing(false);
-    }
-    return false;
-  };
+      } catch { /* silent fail — data safe in localStorage */ }
+    }, 3000);
 
-  const pullFromCloud = async (overrideId?: string): Promise<boolean> => {
-    const targetId = overrideId || syncId;
-    if (!targetId) {
-      showToast('No Sync Code', 'Enter or create a Cloud Sync Code first.', 'warning');
-      return false;
-    }
-    setIsSyncing(true);
-    try {
-      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${targetId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.plEntries)) setPlEntries(data.plEntries);
-        if (Array.isArray(data.expenses)) setExpenses(data.expenses);
-        if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
-        if (Array.isArray(data.products)) setProducts(data.products);
-        if (Array.isArray(data.inventory)) setInventory(data.inventory);
-        if (Array.isArray(data.orders)) setOrders(data.orders);
-        if (data.settings) setSettings(data.settings);
-
-        setSyncId(targetId);
-        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        setLastSyncedAt(nowStr);
-        localStorage.setItem('mahekh_last_synced', nowStr);
-        showToast('Synced from Cloud', `Loaded ${data.plEntries?.length || 0} P&L records!`, 'success');
-        return true;
-      } else {
-        showToast('Sync Failed', 'Invalid Cloud Sync Code.', 'error');
-      }
-    } catch (err) {
-      console.error('Cloud pull failed', err);
-      showToast('Connection Error', 'Failed to fetch cloud data.', 'error');
-    } finally {
-      setIsSyncing(false);
-    }
-    return false;
-  };
-
-  // ── AUTO-PUSH: whenever data changes, silently push to cloud (debounced 4s) ──
-  const syncIdRef = useRef(syncId);
-  useEffect(() => { syncIdRef.current = syncId; }, [syncId]);
-
-  const autoSyncEnabled_Ref = useRef(autoSyncEnabled);
-  useEffect(() => { autoSyncEnabled_Ref.current = autoSyncEnabled; }, [autoSyncEnabled]);
-
-  useEffect(() => {
-    // Don't auto-push on very first mount (avoid overwriting good cloud data
-    // before the startup pull has a chance to run)
-    if (isPullingRef.current) return;
-    if (!syncIdRef.current) return;   // no sync code yet → skip
-    if (!autoSyncEnabled_Ref.current) return;
-
-    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
-    autoSyncTimerRef.current = setTimeout(async () => {
-      if (!syncIdRef.current || isPullingRef.current) return;
-      // Silent push (no toast)
-      try {
-        const payload = {
-          plEntries,
-          expenses,
-          rawPurchases,
-          products,
-          inventory,
-          orders,
-          settings,
-          timestamp: new Date().toISOString()
-        };
-        await fetch(`https://jsonblob.com/api/jsonBlob/${syncIdRef.current}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        setLastSyncedAt(nowStr);
-        localStorage.setItem('mahekh_last_synced', nowStr);
-      } catch { /* silent fail – data is still in localStorage */ }
-    }, 4000);
-
-    return () => {
-      if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
-    };
+    return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
 
-  // ── ON APP OPEN: silently pull latest cloud data if syncId saved ──
-  const pullFromCloudSilent = useCallback(async (id: string) => {
-    if (!id) return;
-    isPullingRef.current = true;
-    try {
-      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.plEntries)) setPlEntries(data.plEntries);
-        if (Array.isArray(data.expenses)) setExpenses(data.expenses);
-        if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
-        if (Array.isArray(data.products)) setProducts(data.products);
-        if (Array.isArray(data.inventory)) setInventory(data.inventory);
-        if (Array.isArray(data.orders)) setOrders(data.orders);
-        if (data.settings) setSettings(data.settings);
-        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        setLastSyncedAt(nowStr);
-        localStorage.setItem('mahekh_last_synced', nowStr);
-        showToast('Data Synced ✅', `Latest data loaded from Cloud (${data.plEntries?.length || 0} P&L entries)`, 'success');
-      }
-    } catch { /* offline – use localStorage */ } finally {
-      setTimeout(() => { isPullingRef.current = false; }, 1000);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Check URL parameter ?sync=ID on page load
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const syncParam = urlParams.get('sync') || urlParams.get('syncId');
-    if (syncParam) {
-      setSyncId(syncParam);
-      pullFromCloudSilent(syncParam);
-    } else if (syncId && autoSyncEnabled) {
-      pullFromCloudSilent(syncId);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const exportBackupJSON = () => {
     const dataToSave = {
@@ -431,65 +338,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-
-  // ── AUTO-CREATE SYNC ON FIRST ENTRY (if no syncId yet) ────────────────
-  const autoInitSync = useCallback(async (allEntries: PLEntry[]) => {
-    // Already synced — nothing to do, auto-push useEffect will handle it
-    if (syncIdRef.current) return;
-    try {
-      const payload = {
-        plEntries: allEntries,
-        expenses,
-        rawPurchases,
-        products,
-        inventory,
-        orders,
-        settings,
-        timestamp: new Date().toISOString()
-      };
-      const res = await fetch('https://jsonblob.com/api/jsonBlob', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const location = res.headers.get('Location');
-        const blobId = location ? location.split('/').pop() || '' : '';
-        if (blobId) {
-          setSyncId(blobId);
-          const syncUrl = `${window.location.origin}/?sync=${blobId}`;
-          const waText = encodeURIComponent(
-            `🌸 *MAHEKH ERP - Data Sync Link*\n\nPhone pe click karo — sab data dikhega:\n👉 ${syncUrl}`
-          );
-          // Show a persistent toast with WhatsApp link
-          showToast(
-            '☁️ Auto-Cloud Sync Active!',
-            `Data cloud pe save ho gaya! Phone pe dekhne ke liye: wa.me/?text karo ya Navbar me Cloud button dabao.`,
-            'success'
-          );
-          // Also open WhatsApp automatically for convenience
-          setTimeout(() => {
-            window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
-          }, 800);
-        }
-      }
-    } catch { /* offline – data safe in localStorage */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expenses, rawPurchases, products, inventory, orders, settings]);
-
-  // Helper CRUD actions
+  // ── CRUD actions ──────────────────────────────────────────────────────────
   const addPLEntry = (entryData: Omit<PLEntry, 'id'>) => {
-    const newEntry: PLEntry = {
-      ...entryData,
-      id: `pl-${Date.now()}`
-    };
-    const updated = [newEntry, ...plEntries];
-    setPlEntries(updated);
-    showToast('P&L Entry Created', `Added entry for ${newEntry.productName} (${newEntry.orders} orders)`, 'success');
-    // If not synced yet → auto-create cloud sync & send WhatsApp link
-    if (!syncIdRef.current) {
-      setTimeout(() => autoInitSync(updated), 500);
-    }
+    const newEntry: PLEntry = { ...entryData, id: `pl-${Date.now()}` };
+    setPlEntries(prev => [newEntry, ...prev]);
+    showToast('P&L Entry Created', `Added: ${newEntry.productName} (${newEntry.orders} orders)`, 'success');
+    // auto-push useEffect (3s debounce) will handle syncing to server
   };
 
   const updatePLEntry = (id: string, updatedData: Partial<PLEntry>) => {
