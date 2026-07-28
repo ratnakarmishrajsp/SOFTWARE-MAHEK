@@ -16,7 +16,8 @@ import {
   Target,
   Info,
   Calendar,
-  HelpCircle
+  HelpCircle,
+  MessageCircle
 } from 'lucide-react';
 
 export type DateFilterType = 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
@@ -240,12 +241,47 @@ export const PLModule: React.FC = () => {
     return matchesSearch && filterByDateRange(e.date);
   });
 
-  // Calculate Banner Metrics for Active Date Filter
   const activeEntries = plEntries.filter(e => filterByDateRange(e.date));
   const activeRevenue = activeEntries.reduce((sum, e) => sum + e.revenue, 0);
   const activeProfit = activeEntries.reduce((sum, e) => sum + (e.netProfitAfterAds ?? e.expectedProfit), 0);
   const activeAdSpend = activeEntries.reduce((sum, e) => sum + (e.totalAdSpend || 0), 0);
   const activeOrdersCount = activeEntries.reduce((sum, e) => sum + e.orders, 0);
+
+  const handleShareWhatsApp = (entry: PLEntry) => {
+    const profitVal = entry.netProfitAfterAds ?? entry.expectedProfit;
+    const text = `🌸 *MAHEKH PERFUME - P&L REPORT* 🌸
+📅 *Date:* ${entry.date}
+📦 *Batch:* ${entry.productName}
+-----------------------------------
+📊 *Total Orders:* ${entry.orders}
+💰 *Total Revenue:* ${formatINR(entry.revenue)}
+🎯 *Meta Ad Spend:* ${formatINR(entry.totalAdSpend || 0)} (CPP: ₹${entry.cpp || 0})
+📦 *Total Cost/Order:* ₹${entry.totalOrderCost}
+-----------------------------------
+💵 *Real Net Profit:* ${formatINR(profitVal)}
+✨ *ROAS:* ${entry.expectedRoas}x
+📈 *Margin:* ${entry.expectedMargin}%
+-----------------------------------
+*Generated via Mahekh ERP Suite*`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareSummaryWhatsApp = () => {
+    const text = `🌸 *MAHEKH PERFUME - P&L SUMMARY REPORT* 🌸
+📅 *Range:* ${dateFilter === 'all' ? 'All Time' : dateFilter}
+-----------------------------------
+📊 *Total Revenue:* ${formatINR(activeRevenue)}
+💵 *Real Net Profit:* ${formatINR(activeProfit)}
+🎯 *Total Ad Spend:* ${formatINR(activeAdSpend)}
+📦 *Total Orders:* ${activeOrdersCount}
+-----------------------------------
+*Mahekh D2C Business Suite*`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -265,6 +301,17 @@ export const PLModule: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {plEntries.length > 0 && (
+            <button
+              onClick={handleShareSummaryWhatsApp}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold text-xs transition-all cursor-pointer shadow-sm"
+              title="Share active P&L summary via WhatsApp"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-500" />
+              <span>Share Summary on WhatsApp</span>
+            </button>
+          )}
+
           {plEntries.length > 0 && (
             <button
               onClick={() => clearPLHistory()}
@@ -502,6 +549,13 @@ export const PLModule: React.FC = () => {
 
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleShareWhatsApp(entry)}
+                          className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/30 transition-colors cursor-pointer"
+                          title="Share this P&L entry on WhatsApp"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleEditClick(entry)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"

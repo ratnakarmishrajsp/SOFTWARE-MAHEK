@@ -15,6 +15,7 @@ import { AnalyticsModule } from './components/analytics/AnalyticsModule';
 import { SettingsModule } from './components/settings/SettingsModule';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { ShortcutsModal } from './components/ui/ShortcutsModal';
+import { CloudSyncModal } from './components/ui/CloudSyncModal';
 
 const MainContent: React.FC = () => {
   const { activeTab } = useApp();
@@ -67,6 +68,7 @@ const MainContent: React.FC = () => {
       {/* Floating UI Overlays */}
       <ToastContainer />
       <ShortcutsModal />
+      <CloudSyncModal />
     </div>
   );
 };

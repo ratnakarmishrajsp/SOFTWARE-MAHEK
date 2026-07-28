@@ -12,7 +12,8 @@ import {
   TrendingDown,
   X,
   Menu,
-  Droplet
+  Droplet,
+  Cloud
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -30,7 +31,10 @@ export const Navbar: React.FC<NavbarProps> = ({ setMobileOpen }) => {
     resetToSeedData,
     plEntries,
     inventory,
-    setActiveTab
+    setActiveTab,
+    syncId,
+    setIsSyncModalOpen,
+    isSyncing
   } = useApp();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -166,6 +170,19 @@ export const Navbar: React.FC<NavbarProps> = ({ setMobileOpen }) => {
             </div>
           )}
         </div>
+
+        {/* Cloud Sync Button */}
+        <button
+          onClick={() => setIsSyncModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs hover:bg-emerald-500/20 transition-all cursor-pointer relative"
+          title="Cross-Device Cloud Sync & Mobile Pairing"
+        >
+          <Cloud className={`w-4 h-4 text-emerald-500 ${isSyncing ? 'animate-pulse' : ''}`} />
+          <span className="hidden lg:inline">{syncId ? 'Cloud Synced' : 'Sync Device'}</span>
+          {syncId && (
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          )}
+        </button>
 
         {/* Theme Toggle Button */}
         <button

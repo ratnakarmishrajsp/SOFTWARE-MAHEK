@@ -35,7 +35,21 @@ interface AppContextType {
   showToast: (title: string, message: string, type?: ToastMessage['type']) => void;
   removeToast: (id: string) => void;
 
-  // Data Store State & Deletion Actions
+  // Cloud Sync & Device Pairing State
+  syncId: string;
+  setSyncId: (id: string) => void;
+  isSyncing: boolean;
+  lastSyncedAt: string | null;
+  autoSyncEnabled: boolean;
+  setAutoSyncEnabled: (enabled: boolean) => void;
+  isSyncModalOpen: boolean;
+  setIsSyncModalOpen: (open: boolean) => void;
+  pushToCloud: (overrideId?: string) => Promise<boolean>;
+  pullFromCloud: (overrideId?: string) => Promise<boolean>;
+  exportBackupJSON: () => void;
+  importBackupJSON: (jsonStr: string) => boolean;
+
+  // Data Store State & Actions
   plEntries: PLEntry[];
   addPLEntry: (entry: Omit<PLEntry, 'id'>) => void;
   updatePLEntry: (id: string, entry: Partial<PLEntry>) => void;
@@ -101,7 +115,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Initialize state from LocalStorage if present, else default to EMPTY arrays []
+  // Cloud Sync State
+  const [syncId, setSyncIdState] = useState<string>(() => {
+    return localStorage.getItem('mahekh_sync_id') || '';
+  });
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
+    return localStorage.getItem('mahekh_last_synced') || null;
+  });
+  const [autoSyncEnabled, setAutoSyncEnabledState] = useState<boolean>(() => {
+    return localStorage.getItem('mahekh_auto_sync') !== 'false';
+  });
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
+
+  const setSyncId = (id: string) => {
+    setSyncIdState(id);
+    localStorage.setItem('mahekh_sync_id', id);
+  };
+
+  const setAutoSyncEnabled = (enabled: boolean) => {
+    setAutoSyncEnabledState(enabled);
+    localStorage.setItem('mahekh_auto_sync', enabled ? 'true' : 'false');
+  };
+
+  // Initialize state from LocalStorage
   const getInitial = <T,>(key: string, defaultVal: T): T => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -117,7 +154,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return defaultVal;
   };
 
-  // Start with 100% EMPTY arrays for all user testing data
   const [plEntries, setPlEntries] = useState<PLEntry[]>(() => getInitial('plEntries', []));
   const [expenses, setExpenses] = useState<ExpenseEntry[]>(() => getInitial('expenses', []));
   const [rawPurchases, setRawPurchases] = useState<RawMaterialPurchase[]>(() => getInitial('rawPurchases', []));
@@ -172,7 +208,154 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // Helper functions & Instant Deletion Handlers
+  // Cloud Sync Functions
+  const pushToCloud = async (overrideId?: string): Promise<boolean> => {
+    const targetId = overrideId || syncId;
+    setIsSyncing(true);
+    try {
+      const payload = {
+        plEntries,
+        expenses,
+        rawPurchases,
+        products,
+        inventory,
+        orders,
+        settings,
+        timestamp: new Date().toISOString()
+      };
+
+      if (!targetId) {
+        // Create new JSON Blob on jsonblob.com
+        const res = await fetch('https://jsonblob.com/api/jsonBlob', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const location = res.headers.get('Location');
+          const blobId = location ? location.split('/').pop() || '' : '';
+          if (blobId) {
+            setSyncId(blobId);
+            const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            setLastSyncedAt(nowStr);
+            localStorage.setItem('mahekh_last_synced', nowStr);
+            showToast('Cloud Sync Active', `Created Device Sync Code: ${blobId}`, 'success');
+            return true;
+          }
+        }
+      } else {
+        // Update existing Blob
+        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${targetId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          setLastSyncedAt(nowStr);
+          localStorage.setItem('mahekh_last_synced', nowStr);
+          showToast('Cloud Updated', `Uploaded data to Cloud (${nowStr})`, 'success');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Cloud push failed', err);
+      showToast('Cloud Sync Error', 'Could not push to Cloud. Saved locally.', 'warning');
+    } finally {
+      setIsSyncing(false);
+    }
+    return false;
+  };
+
+  const pullFromCloud = async (overrideId?: string): Promise<boolean> => {
+    const targetId = overrideId || syncId;
+    if (!targetId) {
+      showToast('No Sync Code', 'Enter or create a Cloud Sync Code first.', 'warning');
+      return false;
+    }
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`https://jsonblob.com/api/jsonBlob/${targetId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.plEntries)) setPlEntries(data.plEntries);
+        if (Array.isArray(data.expenses)) setExpenses(data.expenses);
+        if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
+        if (Array.isArray(data.products)) setProducts(data.products);
+        if (Array.isArray(data.inventory)) setInventory(data.inventory);
+        if (Array.isArray(data.orders)) setOrders(data.orders);
+        if (data.settings) setSettings(data.settings);
+
+        setSyncId(targetId);
+        const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        setLastSyncedAt(nowStr);
+        localStorage.setItem('mahekh_last_synced', nowStr);
+        showToast('Synced from Cloud', `Loaded ${data.plEntries?.length || 0} P&L records!`, 'success');
+        return true;
+      } else {
+        showToast('Sync Failed', 'Invalid Cloud Sync Code.', 'error');
+      }
+    } catch (err) {
+      console.error('Cloud pull failed', err);
+      showToast('Connection Error', 'Failed to fetch cloud data.', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+    return false;
+  };
+
+  // Check URL parameter ?sync=ID on page load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const syncParam = urlParams.get('sync') || urlParams.get('syncId');
+    if (syncParam) {
+      setSyncId(syncParam);
+      pullFromCloud(syncParam);
+    } else if (syncId && autoSyncEnabled) {
+      pullFromCloud(syncId);
+    }
+  }, []);
+
+  const exportBackupJSON = () => {
+    const dataToSave = {
+      plEntries,
+      expenses,
+      rawPurchases,
+      products,
+      inventory,
+      orders,
+      settings,
+      exportedAt: new Date().toISOString()
+    };
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToSave, null, 2))}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', `MAHEKH_ERP_BACKUP_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showToast('Backup Exported', 'Downloaded full business JSON backup file.', 'success');
+  };
+
+  const importBackupJSON = (jsonStr: string): boolean => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed.plEntries)) setPlEntries(parsed.plEntries);
+      if (Array.isArray(parsed.expenses)) setExpenses(parsed.expenses);
+      if (Array.isArray(parsed.rawPurchases)) setRawPurchases(parsed.rawPurchases);
+      if (Array.isArray(parsed.products)) setProducts(parsed.products);
+      if (Array.isArray(parsed.inventory)) setInventory(parsed.inventory);
+      if (Array.isArray(parsed.orders)) setOrders(parsed.orders);
+      if (parsed.settings) setSettings(parsed.settings);
+      showToast('Backup Restored', 'Successfully imported all business data!', 'success');
+      return true;
+    } catch (e) {
+      showToast('Import Error', 'Invalid JSON backup file format.', 'error');
+      return false;
+    }
+  };
+
+  // Helper CRUD actions
   const addPLEntry = (entryData: Omit<PLEntry, 'id'>) => {
     const newEntry: PLEntry = {
       ...entryData,
@@ -428,6 +611,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toasts,
         showToast,
         removeToast,
+        syncId,
+        setSyncId,
+        isSyncing,
+        lastSyncedAt,
+        autoSyncEnabled,
+        setAutoSyncEnabled,
+        isSyncModalOpen,
+        setIsSyncModalOpen,
+        pushToCloud,
+        pullFromCloud,
+        exportBackupJSON,
+        importBackupJSON,
         plEntries,
         addPLEntry,
         updatePLEntry,
