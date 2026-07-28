@@ -431,14 +431,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+
+  // ── AUTO-CREATE SYNC ON FIRST ENTRY (if no syncId yet) ────────────────
+  const autoInitSync = useCallback(async (allEntries: PLEntry[]) => {
+    // Already synced — nothing to do, auto-push useEffect will handle it
+    if (syncIdRef.current) return;
+    try {
+      const payload = {
+        plEntries: allEntries,
+        expenses,
+        rawPurchases,
+        products,
+        inventory,
+        orders,
+        settings,
+        timestamp: new Date().toISOString()
+      };
+      const res = await fetch('https://jsonblob.com/api/jsonBlob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const location = res.headers.get('Location');
+        const blobId = location ? location.split('/').pop() || '' : '';
+        if (blobId) {
+          setSyncId(blobId);
+          const syncUrl = `${window.location.origin}/?sync=${blobId}`;
+          const waText = encodeURIComponent(
+            `🌸 *MAHEKH ERP - Data Sync Link*\n\nPhone pe click karo — sab data dikhega:\n👉 ${syncUrl}`
+          );
+          // Show a persistent toast with WhatsApp link
+          showToast(
+            '☁️ Auto-Cloud Sync Active!',
+            `Data cloud pe save ho gaya! Phone pe dekhne ke liye: wa.me/?text karo ya Navbar me Cloud button dabao.`,
+            'success'
+          );
+          // Also open WhatsApp automatically for convenience
+          setTimeout(() => {
+            window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
+          }, 800);
+        }
+      }
+    } catch { /* offline – data safe in localStorage */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenses, rawPurchases, products, inventory, orders, settings]);
+
   // Helper CRUD actions
   const addPLEntry = (entryData: Omit<PLEntry, 'id'>) => {
     const newEntry: PLEntry = {
       ...entryData,
       id: `pl-${Date.now()}`
     };
-    setPlEntries(prev => [newEntry, ...prev]);
+    const updated = [newEntry, ...plEntries];
+    setPlEntries(updated);
     showToast('P&L Entry Created', `Added entry for ${newEntry.productName} (${newEntry.orders} orders)`, 'success');
+    // If not synced yet → auto-create cloud sync & send WhatsApp link
+    if (!syncIdRef.current) {
+      setTimeout(() => autoInitSync(updated), 500);
+    }
   };
 
   const updatePLEntry = (id: string, updatedData: Partial<PLEntry>) => {
@@ -450,6 +501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPlEntries(prev => prev.filter(item => item.id !== id));
     showToast('Entry Deleted', 'P&L record removed permanently.', 'warning');
   };
+
 
   const clearPLHistory = () => {
     setPlEntries([]);
