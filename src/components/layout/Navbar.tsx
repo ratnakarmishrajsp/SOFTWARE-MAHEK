@@ -10,10 +10,16 @@ import {
   RefreshCw,
   Package,
   TrendingDown,
-  X
+  X,
+  Menu,
+  Droplet
 } from 'lucide-react';
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  setMobileOpen?: (open: boolean) => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ setMobileOpen }) => {
   const {
     theme,
     toggleTheme,
@@ -36,7 +42,24 @@ export const Navbar: React.FC = () => {
   const totalNotifs = lowStockCount + highRtoEntries.length;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-200 dark:border-slate-800/80 px-4 lg:px-8 py-3.5 flex items-center justify-between gap-4 transition-colors">
+    <header className="sticky top-0 z-30 w-full glass-panel border-b border-slate-200 dark:border-slate-800/80 px-3 sm:px-5 lg:px-8 py-3 flex items-center justify-between gap-2.5 transition-colors">
+      {/* Mobile Brand / Menu Toggle */}
+      <div className="flex items-center gap-2.5 lg:hidden">
+        <button
+          onClick={() => setMobileOpen && setMobileOpen(true)}
+          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500 transition-colors"
+          title="Open Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-1.5 font-black text-sm tracking-tight text-amber-600 dark:text-amber-400">
+          <Droplet className="w-5 h-5 fill-amber-500 stroke-amber-500" />
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-300 dark:to-amber-500">
+            Mahekh
+          </span>
+        </div>
+      </div>
+
       {/* Search Input */}
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <div className="relative w-full">
@@ -46,8 +69,8 @@ export const Navbar: React.FC = () => {
             type="text"
             value={globalSearch}
             onChange={e => setGlobalSearch(e.target.value)}
-            placeholder="Search products, entries, attars, expenses... (Ctrl+K)"
-            className="w-full bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/80 rounded-xl pl-10 pr-12 py-2 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-amber-500/80 focus:ring-2 focus:ring-amber-500/20 transition-all"
+            placeholder="Search products, entries, attars, expenses..."
+            className="w-full bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/80 rounded-xl pl-9 pr-8 sm:pr-12 py-2 text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-amber-500/80 focus:ring-2 focus:ring-amber-500/20 transition-all"
           />
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             Ctrl K
@@ -56,16 +79,16 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* Action Controls */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
         {/* Quick Add Button */}
         <button
           onClick={() => {
             setActiveTab('pl');
             setIsQuickAddOpen(true);
           }}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform active:scale-95 cursor-pointer"
         >
-          <PlusCircle className="w-4 h-4" />
+          <PlusCircle className="w-4 h-4 shrink-0" />
           <span className="hidden sm:inline">New P&L Entry</span>
         </button>
 
@@ -73,7 +96,7 @@ export const Navbar: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-800/60 transition-colors"
+            className="relative p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
             title="Notification Center"
           >
             <Bell className="w-4 h-4" />
@@ -147,18 +170,18 @@ export const Navbar: React.FC = () => {
         {/* Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 dark:bg-slate-900/80 border border-amber-500/30 dark:border-slate-800 text-amber-600 dark:text-amber-400 font-semibold text-xs hover:bg-amber-500/20 dark:hover:bg-slate-800/60 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-amber-500/10 dark:bg-slate-900/80 border border-amber-500/30 dark:border-slate-800 text-amber-700 dark:text-amber-400 font-semibold text-xs hover:bg-amber-500/20 dark:hover:bg-slate-800/60 transition-all cursor-pointer"
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
         >
           {theme === 'dark' ? (
             <>
               <Sun className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Light Mode</span>
+              <span className="hidden md:inline">Light</span>
             </>
           ) : (
             <>
               <Moon className="w-4 h-4 text-slate-700" />
-              <span className="hidden sm:inline">Dark Mode</span>
+              <span className="hidden md:inline">Dark</span>
             </>
           )}
         </button>
@@ -182,9 +205,9 @@ export const Navbar: React.FC = () => {
         </button>
 
         {/* User Profile Tag */}
-        <div className="pl-2 border-l border-slate-200 dark:border-slate-800 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-amber-600 to-amber-700 p-0.5 shadow-md">
-            <div className="w-full h-full rounded-full bg-slate-900 dark:bg-slate-950 flex items-center justify-center text-amber-400 text-xs font-bold">
+        <div className="pl-1.5 sm:pl-2 border-l border-slate-200 dark:border-slate-800 flex items-center gap-2">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-amber-500 via-amber-600 to-amber-700 p-0.5 shadow-md shrink-0">
+            <div className="w-full h-full rounded-full bg-slate-900 dark:bg-slate-950 flex items-center justify-center text-amber-400 text-[10px] sm:text-xs font-bold">
               ME
             </div>
           </div>

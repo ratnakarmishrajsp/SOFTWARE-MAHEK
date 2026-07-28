@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { HomeDashboard } from './components/dashboard/HomeDashboard';
 import { PLModule } from './components/pl/PLModule';
 import { ExpenseModule } from './components/expenses/ExpenseModule';
@@ -48,17 +49,20 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-800 dark:selection:text-amber-200 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-800 dark:selection:text-amber-200 transition-colors duration-300 pb-20 lg:pb-0">
       {/* Sidebar Navigation */}
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
       {/* Main Content Workspace */}
       <div className="flex-1 lg:pl-72 flex flex-col min-w-0 transition-all duration-300">
-        <Navbar />
-        <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
+        <Navbar setMobileOpen={setMobileOpen} />
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
           {renderActiveModule()}
         </main>
       </div>
+
+      {/* Mobile Bottom Dock */}
+      <MobileBottomNav setMobileOpen={setMobileOpen} />
 
       {/* Floating UI Overlays */}
       <ToastContainer />
