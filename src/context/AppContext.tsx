@@ -146,6 +146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isPullingRef = useRef(false);
   const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialMountRef = useRef(true);
+  const hasPulledInitialRef = useRef(false);
   const deletedIdsRef = useRef<Set<string>>(new Set());
 
   // Initialize state from LocalStorage
@@ -320,6 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!silent) showToast('⚠️ Connection Error', 'Server se connect nahi ho saka.', 'warning');
     } finally {
       setIsSyncing(false);
+      hasPulledInitialRef.current = true;
       setTimeout(() => { isPullingRef.current = false; }, 500);
     }
     return false;
@@ -356,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearTimeout(initTimer);
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocusOrVisible);
-      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      window.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('online', handleFocusOrVisible);
       window.removeEventListener('pointerdown', handleFocusOrVisible);
     };
@@ -368,30 +370,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { autoSyncEnabledRef.current = autoSyncEnabled; }, [autoSyncEnabled]);
 
   useEffect(() => {
-    // Skip the very first mount (don't overwrite server data before pull completes)
+    // Skip initial mount & wait until initial server pull completes
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       return;
     }
     if (!autoSyncEnabledRef.current) return;
+    if (!hasPulledInitialRef.current) return; // Never overwrite server before initial pull!
     if (isPullingRef.current) return;   // Don't push while pulling
 
     if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
-    autoSyncTimerRef.current = setTimeout(async () => {
-      if (isPullingRef.current) return;
-      try {
-        const payload = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-          setLastSyncedAt(nowStr);
-          localStorage.setItem('mahekh_last_synced', nowStr);
-        }
-      } catch { /* silent fail — data safe in localStorage */ }
+    autoSyncTimerRef.current = setTimeout(() => {
+      if (isPullingRef.current || !hasPulledInitialRef.current) return;
+      pushToCloud();
     }, 3000);
 
     return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };

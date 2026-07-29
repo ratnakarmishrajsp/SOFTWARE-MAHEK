@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-    // Merge with existing data if present
+    // Replace server keys cleanly with client payload data
     $existing = [];
     if (file_exists($dataFile)) {
         $existingContent = @file_get_contents($dataFile);
@@ -71,11 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $merged = array_merge($existing, $data, ['savedAt' => date('c')]);
+    $updated = $existing;
+    foreach ($data as $key => $val) {
+        if ($key === 'savedAt') continue;
+        $updated[$key] = $val;
+    }
+    $updated['savedAt'] = date('c');
 
     $written = @file_put_contents(
         $dataFile,
-        json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+        json_encode($updated, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
         LOCK_EX
     );
 
@@ -83,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         @chmod($dataFile, 0644);
         echo json_encode([
             'success' => true,
-            'savedAt' => $merged['savedAt'],
+            'savedAt' => $updated['savedAt'],
             'bytes'   => $written
         ]);
     } else {
