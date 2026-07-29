@@ -54,14 +54,14 @@
     </style>
 
     <script>
-      // 3.5s Fail-safe: Automatically present recovery button if browser cache or network stalls script loading
+      // 5s Fail-safe: Cache-busting URL reload if network/CDN stalls script load
       window.__MAHEKH_MOUNTED__ = false;
       setTimeout(function() {
         var root = document.getElementById('root');
         if (!window.__MAHEKH_MOUNTED__ && root && (!root.children || root.children.length === 0)) {
-          root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#020617;color:#f8fafc;font-family:sans-serif;text-align:center;padding:24px;"><div style="font-size:40px;margin-bottom:12px;">💧</div><h3 style="font-size:18px;font-weight:bold;color:#f59e0b;margin-bottom:8px;">Mahekh ERP — Quick Refresh</h3><p style="font-size:12px;color:#94a3b8;max-width:320px;margin-bottom:20px;line-height:1.5;">Browser cache has updated to the latest version. Click below to load instantly.</p><button onclick="window.location.reload(true)" style="background:linear-gradient(to right, #f59e0b, #d97706);color:#020617;border:none;padding:12px 28px;border-radius:14px;font-size:13px;font-weight:bold;cursor:pointer;box-shadow:0 10px 25px rgba(245,158,11,0.3);">⚡ Load Latest ERP Version</button></div>';
+          root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#020617;color:#f8fafc;font-family:sans-serif;text-align:center;padding:24px;"><div style="font-size:40px;margin-bottom:12px;">💧</div><h3 style="font-size:18px;font-weight:bold;color:#f59e0b;margin-bottom:8px;">Mahekh ERP — Quick Launch</h3><p style="font-size:12px;color:#94a3b8;max-width:340px;margin-bottom:20px;line-height:1.5;">Click below to load the latest application build.</p><button onclick="window.location.href = window.location.pathname + \'?t=\' + Date.now()" style="background:linear-gradient(to right, #f59e0b, #d97706);color:#020617;border:none;padding:12px 28px;border-radius:14px;font-size:13px;font-weight:bold;cursor:pointer;box-shadow:0 10px 25px rgba(245,158,11,0.3);">⚡ Launch Latest Version</button></div>';
         }
-      }, 3500);
+      }, 5000);
     </script>
   </head>
   <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-amber-500/30 selection:text-amber-800 dark:selection:text-amber-200 min-h-screen transition-colors duration-300">

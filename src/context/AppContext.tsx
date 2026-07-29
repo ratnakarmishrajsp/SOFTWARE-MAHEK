@@ -123,7 +123,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // • Auto-push (debounced 3s) on every data change
   // ────────────────────────────────────────────────────────────────────────
 
-  const API_URL = '/api.php';   // Same-origin: erp.mahekh.com/api.php
+  const API_URL = './api.php';   // Same-origin relative path for subdirectory support
 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
