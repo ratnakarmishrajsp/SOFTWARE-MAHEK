@@ -8,7 +8,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     target: 'esnext',
-    cssCodeSplit: true,
+    cssCodeSplit: false,
     chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/bundle.js',
+        chunkFileNames: 'assets/bundle-[name].js',
+        assetFileNames: 'assets/bundle.[ext]',
+      },
+    },
   },
 });
