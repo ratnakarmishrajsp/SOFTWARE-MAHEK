@@ -35,17 +35,37 @@ export const ActualRTOModal: React.FC<ActualRTOModalProps> = ({ entry, onClose }
 
   // Real-time calculation preview inside modal
   const actualRev = actualDelivered * entry.sellingPrice;
+
+  let effectiveShippingCost = entry.shippingCost || 130;
+  let effectivePackagingCost = entry.packagingCost || 35;
+  let effectiveProductCost = entry.productCost;
+
+  if (entry.costMode === 'combined' && entry.combinedCost) {
+    effectiveShippingCost = 130;
+    effectivePackagingCost = 35;
+    effectiveProductCost = Math.max(0, entry.combinedCost - effectiveShippingCost - effectivePackagingCost);
+  }
+
   const totalCostPerUnit =
-    entry.productCost +
-    entry.packagingCost +
-    entry.shippingCost +
-    entry.codCharge +
-    entry.paymentGatewayCharge +
-    entry.otherCharges;
+    effectiveProductCost +
+    effectivePackagingCost +
+    effectiveShippingCost +
+    (entry.codCharge || 0) +
+    (entry.paymentGatewayCharge || 0) +
+    (entry.otherCharges || 0);
 
   const totalDeliveredCost = actualDelivered * totalCostPerUnit;
-  const rtoPenalties = actualRto * 50;
-  const calculatedActualProfit = Math.round(actualRev - totalDeliveredCost - rtoPenalties - (refund * entry.sellingPrice));
+
+  const rtoShippingFee = entry.rtoShippingCharge || 120;
+  const rtoLossPerUnit = effectiveShippingCost + rtoShippingFee + effectivePackagingCost;
+  const totalRtoCourierLoss = actualRto * rtoLossPerUnit;
+  const totalAdSpend = entry.totalAdSpend || (entry.cpp ? entry.cpp * entry.orders : 0);
+
+  const cogsSavedOnRto = actualRto * effectiveProductCost;
+
+  const calculatedActualProfit = Math.round(
+    actualRev - totalDeliveredCost - totalRtoCourierLoss - totalAdSpend - (refund * entry.sellingPrice)
+  );
   const diffFromExpected = calculatedActualProfit - Math.round(entry.expectedProfit);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -104,6 +124,20 @@ export const ActualRTOModal: React.FC<ActualRTOModalProps> = ({ entry, onClose }
             <span className={`text-[10px] font-semibold block ${diffFromExpected >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
               {diffFromExpected >= 0 ? '+' : ''}{formatINR(diffFromExpected)} variance
             </span>
+          </div>
+        </div>
+
+        {/* RTO Calculation Logic Explanation Box */}
+        <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[11px] space-y-1">
+          <div className="font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
+            <span>ℹ️ Formula Breakdown & Product Cost Recovery:</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">COGS Saved: +{formatINR(cogsSavedOnRto)}</span>
+          </div>
+          <div className="text-slate-600 dark:text-slate-400 leading-relaxed space-y-0.5">
+            <div>• <strong>Delivered Revenue:</strong> {actualDelivered} units × {formatINR(entry.sellingPrice)} = {formatINR(actualRev)}</div>
+            <div>• <strong>Product Cost (COGS) Saved:</strong> RTO units warehouse stock me wapas aane se Product Cost ({formatINR(effectiveProductCost)}/unit) safe wapas mil jata hai.</div>
+            <div>• <strong>RTO Shipping & Freight Loss:</strong> {actualRto} RTO orders × (Shipping {formatINR(effectiveShippingCost)} + RTO Fee {formatINR(rtoShippingFee)}) = <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatINR(totalRtoCourierLoss)}</span></div>
+            <div>• <strong>Total Ad Spend:</strong> Batch Ad spend = <span className="text-rose-600 dark:text-rose-400 font-bold">-{formatINR(totalAdSpend)}</span> (Marketing cost across all {entry.orders} orders)</div>
           </div>
         </div>
 

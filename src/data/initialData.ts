@@ -533,6 +533,7 @@ export const INITIAL_SETTINGS: SystemSettings = {
   defaultShippingCost: 75,
   defaultProductCost: 180,
   defaultRtoPercent: 18,
+  defaultRtoShippingCharge: 120,
   currencySymbol: '₹',
   attarList: INITIAL_ATTAR_LIST,
   expenseCategories: [

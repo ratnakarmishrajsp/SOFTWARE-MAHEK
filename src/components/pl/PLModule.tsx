@@ -117,10 +117,17 @@ export const PLModule: React.FC = () => {
 
   const calcExpectedDelivered = orders * (1 - expectedRtoPercent / 100);
   const calcExpectedRto = orders * (expectedRtoPercent / 100);
-  const returnPenaltyPerOrder = 50;
+
+  const effectiveShipping = costMode === 'combined' ? (settings.defaultShippingCost || 130) : shippingCost;
+  const effectivePackaging = costMode === 'combined' ? 35 : packagingCost;
+  const rtoCourierFee = settings.defaultRtoShippingCharge || 120;
+  const rtoLossPerUnit = effectiveShipping + rtoCourierFee + effectivePackaging;
+
+  const totalDeliveredCost = calcExpectedDelivered * totalCostPerOrder;
+  const totalRtoCourierLoss = calcExpectedRto * rtoLossPerUnit;
 
   const grossProfit = Math.round(
-    calcRevenue - calcExpectedDelivered * totalCostPerOrder - calcExpectedRto * returnPenaltyPerOrder
+    calcRevenue - totalDeliveredCost - totalRtoCourierLoss
   );
 
   const netProfitAfterAds = Math.round(grossProfit - totalAdSpend);
@@ -1008,21 +1015,32 @@ export const PLModule: React.FC = () => {
 
                 {/* FORMULA EXPLAINER CARD */}
                 {showFormulaHelp && (
-                  <div className="p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-2 border border-amber-500/40 animate-in fade-in duration-200 font-mono">
-                    <div className="font-bold text-amber-400 flex items-center gap-1">
-                      <Info className="w-3.5 h-3.5" />
-                      Detailed Real Net Profit Breakdown Formula:
+                  <div className="p-4 rounded-2xl bg-slate-900 text-slate-100 text-xs space-y-3 border border-amber-500/40 animate-in fade-in duration-200 font-mono shadow-2xl">
+                    <div className="font-bold text-amber-400 flex items-center justify-between text-sm border-b border-slate-800 pb-2">
+                      <span className="flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-amber-400" />
+                        Detailed Real Net Profit & RTO Recovery Formula:
+                      </span>
+                      <span className="text-[10px] text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+                        D2C Attar Business Standard
+                      </span>
                     </div>
-                    <div className="space-y-1 text-[11px] text-slate-300">
-                      <p>• <b>Total Revenue</b> = Orders ({orders}) × Selling Price (₹{sellingPrice}) = {formatINR(calcRevenue)}</p>
-                      <p>• <b>Delivered Orders</b> = {orders} × (100 - {expectedRtoPercent}%) = {calcExpectedDelivered.toFixed(1)} orders</p>
-                      <p>• <b>RTO Orders</b> = {orders} × {expectedRtoPercent}% = {calcExpectedRto.toFixed(1)} orders</p>
-                      <p>• <b>Product & Delivery Cost</b> = {calcExpectedDelivered.toFixed(1)} delivered × ₹{totalCostPerOrder} cost/order = {formatINR(calcExpectedDelivered * totalCostPerOrder)}</p>
-                      <p>• <b>RTO Return Penalties</b> = {calcExpectedRto.toFixed(1)} RTO × ₹50 penalty cut per RTO order = {formatINR(calcExpectedRto * 50)}</p>
-                      <p>• <b>Gross Profit</b> = {formatINR(calcRevenue)} - {formatINR(calcExpectedDelivered * totalCostPerOrder)} - {formatINR(calcExpectedRto * 50)} = {formatINR(grossProfit)}</p>
-                      <p>• <b>Meta Ad Spend</b> = {formatINR(totalAdSpend)} ({cpp} CPP per order)</p>
-                      <p className="font-bold text-emerald-400">
-                        👉 <b>REAL NET PROFIT</b> = {formatINR(grossProfit)} Gross Profit - {formatINR(totalAdSpend)} Ad Spend = {formatINR(netProfitAfterAds)}
+
+                    <div className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
+                      <p>• <b>Total Revenue</b> = Orders ({orders}) × Selling Price (₹{sellingPrice}) = <span className="text-emerald-400 font-bold">{formatINR(calcRevenue)}</span></p>
+                      <p>• <b>Delivered Orders</b> = {orders} × (100 - {expectedRtoPercent}%) = <b>{calcExpectedDelivered.toFixed(1)}</b> orders delivered</p>
+                      <p>• <b>RTO Orders</b> = {orders} × {expectedRtoPercent}% = <b>{calcExpectedRto.toFixed(1)}</b> orders returned</p>
+                      <p>• <b>Delivered Orders COGS & Courier Cost</b> = {calcExpectedDelivered.toFixed(1)} delivered × ₹{totalCostPerOrder} = <span className="text-slate-200 font-bold">{formatINR(calcExpectedDelivered * totalCostPerOrder)}</span></p>
+                      
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 my-2 space-y-1">
+                        <p className="text-amber-300 font-bold">📦 RTO Unit Product Cost & Freight Loss Rules:</p>
+                        <p>1. <b>Product Cost (COGS) Saved:</b> RTO units warehouse stock me wapas aane se Product Cost ({formatINR(productCost || (combinedCost - (settings.defaultShippingCost || 130) - 35))}/unit) safe wapas stock credit ho jata hai.</p>
+                        <p>2. <b>RTO Courier Freight Loss:</b> {calcExpectedRto.toFixed(1)} RTO × (Forward Shipping + RTO Courier Fee ₹120 + Box) = <span className="text-rose-400 font-bold">-{formatINR(calcExpectedRto * ((settings.defaultShippingCost || 130) + (settings.defaultRtoShippingCharge || 120) + 35))}</span></p>
+                        <p>3. <b>Meta Ad Spend:</b> Total campaign ad spend = <span className="text-rose-400 font-bold">-{formatINR(totalAdSpend)}</span> (Marketing spent across all {orders} orders)</p>
+                      </div>
+
+                      <p className="font-bold text-emerald-400 text-xs pt-1 border-t border-slate-800">
+                        👉 <b>REAL NET PROFIT</b> = {formatINR(calcRevenue)} Revenue - Delivered Cost - RTO Freight Loss - Ad Spend = <span className="text-emerald-400 underline">{formatINR(netProfitAfterAds)}</span>
                       </p>
                     </div>
                   </div>

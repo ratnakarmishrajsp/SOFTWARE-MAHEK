@@ -26,6 +26,7 @@ export interface PLEntry {
   codCharge: number;
   paymentGatewayCharge: number;
   expectedRtoPercent: number;
+  rtoShippingCharge?: number; // RTO Return Shipping Charge (e.g. ₹120)
   otherCharges: number;
   notes?: string;
 
@@ -156,6 +157,7 @@ export interface SystemSettings {
   defaultShippingCost: number;
   defaultProductCost: number;
   defaultRtoPercent: number;
+  defaultRtoShippingCharge?: number;
   currencySymbol: string;
   attarList: string[];
   expenseCategories: string[];

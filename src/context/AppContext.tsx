@@ -418,10 +418,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (item.id !== id) return item;
 
         const actualRev = actuals.actualDeliveredOrders * item.sellingPrice;
-        const totalCostPerUnit = item.productCost + item.packagingCost + item.shippingCost + item.codCharge + item.paymentGatewayCharge + item.otherCharges;
+
+        let effectiveShippingCost = item.shippingCost || settings.defaultShippingCost || 130;
+        let effectivePackagingCost = item.packagingCost || 35;
+        let effectiveProductCost = item.productCost;
+
+        if (item.costMode === 'combined' && item.combinedCost) {
+          effectiveShippingCost = settings.defaultShippingCost || 130;
+          effectivePackagingCost = 35;
+          effectiveProductCost = Math.max(0, item.combinedCost - effectiveShippingCost - effectivePackagingCost);
+        }
+
+        const totalCostPerUnit = effectiveProductCost + effectivePackagingCost + effectiveShippingCost + (item.codCharge || 0) + (item.paymentGatewayCharge || 0) + (item.otherCharges || 0);
+
+        // Delivered Orders Cost
         const totalDeliveredCost = actuals.actualDeliveredOrders * totalCostPerUnit;
-        const rtoPenalties = actuals.actualRtoOrders * 50;
-        const actualProfitVal = actualRev - totalDeliveredCost - rtoPenalties - (actuals.refundOrders * item.sellingPrice);
+
+        // RTO Courier Loss (Forward Shipping + RTO Return Courier Fee)
+        const rtoShippingFee = item.rtoShippingCharge || settings.defaultRtoShippingCharge || 120;
+        const rtoCourierLossPerOrder = effectiveShippingCost + rtoShippingFee + effectivePackagingCost;
+        const totalRtoLoss = actuals.actualRtoOrders * rtoCourierLossPerOrder;
+
+        // Total Ad Spend (Applied across batch)
+        const totalAdSpend = item.totalAdSpend || (item.cpp ? item.cpp * item.orders : 0);
+
+        // Net Actual Profit (Note: Product Cost for RTO units is SAVED since stock returns)
+        const actualProfitVal = actualRev - totalDeliveredCost - totalRtoLoss - totalAdSpend - (actuals.refundOrders * item.sellingPrice);
 
         return {
           ...item,
