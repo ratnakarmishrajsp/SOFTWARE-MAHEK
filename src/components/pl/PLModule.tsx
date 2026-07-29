@@ -42,6 +42,7 @@ export const PLModule: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
   const [showFormulaHelp, setShowFormulaHelp] = useState<boolean>(false);
+  const [breakdownEntry, setBreakdownEntry] = useState<PLEntry | null>(null);
 
   // Form State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -532,9 +533,18 @@ export const PLModule: React.FC = () => {
                     </td>
 
                     <td className="p-4 font-black">
-                      <span className={profitVal >= 0 ? 'text-emerald-600 dark:text-emerald-400 text-sm' : 'text-rose-600 dark:text-rose-400 text-sm'}>
-                        {formatINR(profitVal)}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={profitVal >= 0 ? 'text-emerald-600 dark:text-emerald-400 text-sm' : 'text-rose-600 dark:text-rose-400 text-sm'}>
+                          {formatINR(profitVal)}
+                        </span>
+                        <button
+                          onClick={() => setBreakdownEntry(entry)}
+                          className="p-1 rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer"
+                          title="Click to see step-by-step Math Formula Breakdown"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
 
                     <td className="p-4">
@@ -1098,6 +1108,107 @@ export const PLModule: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* STEP-BY-STEP PROFIT CALCULATION EXPLAINER MODAL */}
+      {breakdownEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative">
+            <button
+              onClick={() => setBreakdownEntry(null)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-100 rounded-full hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                <Calculator className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                  Step-by-Step Profit Breakdown
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Date: {breakdownEntry.date} • {breakdownEntry.productName}
+                </p>
+              </div>
+            </div>
+
+            {(() => {
+              const e = breakdownEntry;
+              const rtoPct = e.expectedRtoPercent || 18;
+              const rtoCount = e.actualRtoOrders ?? Math.round(e.orders * (rtoPct / 100));
+              const delCount = e.actualDeliveredOrders ?? (e.orders - rtoCount);
+              const delRev = delCount * e.sellingPrice;
+              
+              const isComb = e.costMode === 'combined';
+              const ship = isComb ? (settings.defaultShippingCost || 130) : (e.shippingCost || 75);
+              const pack = isComb ? 35 : (e.packagingCost || 35);
+              const prodCost = isComb ? Math.max(0, (e.combinedCost || 348) - ship - pack) : e.productCost;
+              const delCost = delCount * (prodCost + pack + ship + (e.codCharge || 0) + (e.paymentGatewayCharge || 0) + (e.otherCharges || 0));
+
+              const rtoFee = e.rtoShippingCharge || settings.defaultRtoShippingCharge || 120;
+              const rtoLossPerUnit = ship + rtoFee + pack;
+              const totalRtoLoss = rtoCount * rtoLossPerUnit;
+              const adSpend = e.totalAdSpend || (e.cpp ? e.cpp * e.orders : 0);
+              const calcNet = delRev - delCost - totalRtoLoss - adSpend;
+
+              return (
+                <div className="space-y-3 text-xs">
+                  <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/80 space-y-1.5">
+                    <div className="flex justify-between font-semibold">
+                      <span>1. Total Orders Booked:</span>
+                      <span className="font-bold text-amber-500">{e.orders} Orders @ ₹{e.sellingPrice}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span>2. Delivered Orders ({delCount} units):</span>
+                      <span>+₹{delRev.toLocaleString('en-IN')} Revenue</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 dark:text-slate-400 pl-3">
+                      <span>• Delivered Product + Ship + Pack:</span>
+                      <span>-₹{delCost.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1.5 text-rose-900 dark:text-rose-200">
+                    <div className="flex justify-between font-bold">
+                      <span>3. RTO Orders ({rtoCount} units @ {rtoPct}% RTO):</span>
+                      <span>-₹{totalRtoLoss.toLocaleString('en-IN')} Courier Loss</span>
+                    </div>
+                    <p className="text-[11px] text-rose-800/80 dark:text-rose-300/80 leading-relaxed">
+                      💡 <strong>Stock Return Credit:</strong> Product Cost (₹{prodCost}/unit) is SAVED because stock returns to warehouse. Loss is only Forward Shipping (₹{ship}) + RTO Fee (₹{rtoFee}) + Box (₹{pack}) = ₹{rtoLossPerUnit}/RTO order.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-1.5 text-blue-900 dark:text-blue-200">
+                    <div className="flex justify-between font-bold">
+                      <span>4. Total Marketing Ad Spend (All {e.orders} Orders):</span>
+                      <span>-₹{adSpend.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                      CPP = ₹{e.cpp || Math.round(adSpend / e.orders)} / order across batch.
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex justify-between items-center text-sm font-black text-slate-900 dark:text-slate-100">
+                    <span>5. REAL NET PROFIT:</span>
+                    <span className={calcNet >= 0 ? 'text-emerald-600 dark:text-emerald-400 text-base' : 'text-rose-600 dark:text-rose-400 text-base'}>
+                      ₹{calcNet.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setBreakdownEntry(null)}
+                    className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-xs shadow-md hover:bg-amber-600 transition-colors cursor-pointer"
+                  >
+                    Got It! Close Breakdown
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
