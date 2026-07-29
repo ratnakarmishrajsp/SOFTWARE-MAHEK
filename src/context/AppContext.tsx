@@ -205,11 +205,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const stateRef = useRef({ plEntries, expenses, rawPurchases, products, inventory, orders, settings });
+  useEffect(() => {
+    stateRef.current = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
+  }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
+
   // ── PUSH: save current state to server ───────────────────────────────────
-  const pushToCloud = useCallback(async (_overrideId?: string): Promise<boolean> => {
+  const pushToCloud = useCallback(async (customPayload?: any): Promise<boolean> => {
     setIsSyncing(true);
     try {
-      const payload = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
+      const payload = customPayload || stateRef.current;
       const res = await fetchWithTimeout(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -232,8 +237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsSyncing(false);
     }
     return false;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plEntries, expenses, rawPurchases, products, inventory, orders, settings]);
+  }, []);
 
   // ── PULL: fetch latest data from server ──────────────────────────────────
   const pullFromCloud = useCallback(async (_overrideId?: string, silent = false): Promise<boolean> => {
@@ -329,14 +333,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pullFromCloud(undefined, true);
     }, 200);
 
-    // Periodic polling every 10 seconds for real-time multi-device sync
+    // Periodic polling every 3 seconds for real-time multi-device sync (Phone ↔ Laptop)
     const pollInterval = setInterval(() => {
       if (!isSyncing && !isPullingRef.current && autoSyncEnabledRef.current) {
         pullFromCloud(undefined, true);
       }
-    }, 10000);
+    }, 3000);
 
-    // Auto pull when switching back to tab/app (mobile & laptop)
+    // Auto pull when switching back to tab/app or interacting on screen
     const handleFocusOrVisible = () => {
       if (document.visibilityState === 'visible' && !isSyncing && !isPullingRef.current) {
         pullFromCloud(undefined, true);
@@ -345,12 +349,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     window.addEventListener('focus', handleFocusOrVisible);
     document.addEventListener('visibilitychange', handleFocusOrVisible);
+    window.addEventListener('online', handleFocusOrVisible);
+    window.addEventListener('pointerdown', handleFocusOrVisible);
 
     return () => {
       clearTimeout(initTimer);
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocusOrVisible);
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      window.removeEventListener('online', handleFocusOrVisible);
+      window.removeEventListener('pointerdown', handleFocusOrVisible);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -433,29 +441,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ── CRUD actions ──────────────────────────────────────────────────────────
   const addPLEntry = (entryData: Omit<PLEntry, 'id'>) => {
     const newEntry: PLEntry = { ...entryData, id: `pl-${Date.now()}` };
-    setPlEntries(prev => [newEntry, ...prev]);
+    setPlEntries(prev => {
+      const next = [newEntry, ...prev];
+      pushToCloud({ ...stateRef.current, plEntries: next });
+      return next;
+    });
     showToast('P&L Entry Created', `Added: ${newEntry.productName} (${newEntry.orders} orders)`, 'success');
-    // Trigger immediate background push to server
-    setTimeout(() => { pushToCloud(); }, 100);
   };
 
   const updatePLEntry = (id: string, updatedData: Partial<PLEntry>) => {
-    setPlEntries(prev => prev.map(item => (item.id === id ? { ...item, ...updatedData } : item)));
+    setPlEntries(prev => {
+      const next = prev.map(item => (item.id === id ? { ...item, ...updatedData } : item));
+      pushToCloud({ ...stateRef.current, plEntries: next });
+      return next;
+    });
     showToast('Entry Updated', 'Profit & Loss record was successfully updated.', 'info');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deletePLEntry = (id: string) => {
     deletedIdsRef.current.add(id);
-    setPlEntries(prev => prev.filter(item => item.id !== id));
+    setPlEntries(prev => {
+      const next = prev.filter(item => item.id !== id);
+      pushToCloud({ ...stateRef.current, plEntries: next });
+      return next;
+    });
     showToast('Entry Deleted', 'P&L record removed permanently.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearPLHistory = () => {
     setPlEntries([]);
+    pushToCloud({ ...stateRef.current, plEntries: [] });
     showToast('P&L History Cleared', 'All P&L entries have been permanently removed.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const reconcilePLEntry = (
@@ -470,8 +486,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reconciliationNotes?: string;
     }
   ) => {
-    setPlEntries(prev =>
-      prev.map(item => {
+    setPlEntries(prev => {
+      const next = prev.map(item => {
         if (item.id !== id) return item;
 
         const actualRev = actuals.actualDeliveredOrders * item.sellingPrice;
@@ -488,18 +504,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const totalCostPerUnit = effectiveProductCost + effectivePackagingCost + effectiveShippingCost + (item.codCharge || 0) + (item.paymentGatewayCharge || 0) + (item.otherCharges || 0);
 
-        // Delivered Orders Cost
         const totalDeliveredCost = actuals.actualDeliveredOrders * totalCostPerUnit;
 
-        // RTO Courier Loss (Forward Shipping + RTO Return Courier Fee)
         const rtoShippingFee = item.rtoShippingCharge || settings.defaultRtoShippingCharge || 120;
         const rtoCourierLossPerOrder = effectiveShippingCost + rtoShippingFee + effectivePackagingCost;
         const totalRtoLoss = actuals.actualRtoOrders * rtoCourierLossPerOrder;
 
-        // Total Ad Spend (Applied across batch)
         const totalAdSpend = item.totalAdSpend || (item.cpp ? item.cpp * item.orders : 0);
 
-        // Net Actual Profit (Note: Product Cost for RTO units is SAVED since stock returns)
         const actualProfitVal = actualRev - totalDeliveredCost - totalRtoLoss - totalAdSpend - (actuals.refundOrders * item.sellingPrice);
 
         return {
@@ -514,10 +526,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           actualProfit: Math.round(actualProfitVal),
           reconciliationNotes: actuals.reconciliationNotes
         };
-      })
-    );
+      });
+      pushToCloud({ ...stateRef.current, plEntries: next });
+      return next;
+    });
     showToast('RTO Reconciliation Complete', 'Actual profit & delivery counts recalculated.', 'success');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addExpense = (expenseData: Omit<ExpenseEntry, 'id'>) => {
@@ -525,16 +538,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...expenseData,
       id: `exp-${Date.now()}`
     };
-    setExpenses(prev => [newExp, ...prev]);
+    setExpenses(prev => {
+      const next = [newExp, ...prev];
+      pushToCloud({ ...stateRef.current, expenses: next });
+      return next;
+    });
     showToast('Expense Added', `₹${newExp.amount} categorized under ${newExp.category}`, 'success');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteExpense = (id: string) => {
     deletedIdsRef.current.add(id);
-    setExpenses(prev => prev.filter(e => e.id !== id));
+    setExpenses(prev => {
+      const next = prev.filter(e => e.id !== id);
+      pushToCloud({ ...stateRef.current, expenses: next });
+      return next;
+    });
     showToast('Expense Deleted', 'Expense record removed permanently.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearExpenseHistory = () => {
@@ -548,7 +567,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...purchaseData,
       id: `rm-${Date.now()}`
     };
-    setRawPurchases(prev => [newPurchase, ...prev]);
+    setRawPurchases(prev => {
+      const next = [newPurchase, ...prev];
+      pushToCloud({ ...stateRef.current, rawPurchases: next });
+      return next;
+    });
 
     setInventory(prev => {
       const existing = prev.find(inv => inv.name.toLowerCase().includes(purchaseData.attarName.toLowerCase()));
@@ -580,20 +603,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     showToast('Raw Material Purchased', `Added ${purchaseData.quantity} ${purchaseData.unit} of ${purchaseData.attarName}`, 'success');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteRawPurchase = (id: string) => {
     deletedIdsRef.current.add(id);
-    setRawPurchases(prev => prev.filter(r => r.id !== id));
+    setRawPurchases(prev => {
+      const next = prev.filter(r => r.id !== id);
+      pushToCloud({ ...stateRef.current, rawPurchases: next });
+      return next;
+    });
     showToast('Purchase Deleted', 'Raw material purchase record removed.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearRawPurchasesHistory = () => {
     setRawPurchases([]);
+    pushToCloud({ ...stateRef.current, rawPurchases: [] });
     showToast('Raw Material History Cleared', 'All raw material purchase records removed.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addProduct = (prod: Omit<Product, 'id'>) => {
@@ -601,26 +626,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prod,
       id: `prod-${Date.now()}`
     };
-    setProducts(prev => [...prev, newProd]);
+    setProducts(prev => {
+      const next = [...prev, newProd];
+      pushToCloud({ ...stateRef.current, products: next });
+      return next;
+    });
     showToast('Product Added', `${newProd.name} added to catalog`, 'success');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateProduct = (id: string, prod: Partial<Product>) => {
-    setProducts(prev => prev.map(p => (p.id === id ? { ...p, ...prod } : p)));
+    setProducts(prev => {
+      const next = prev.map(p => (p.id === id ? { ...p, ...prod } : p));
+      pushToCloud({ ...stateRef.current, products: next });
+      return next;
+    });
     showToast('Product Updated', 'Product details saved.', 'info');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+    setProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      pushToCloud({ ...stateRef.current, products: next });
+      return next;
+    });
     showToast('Product Deleted', 'Product SKU removed from catalog.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateInventoryStock = (id: string, newStock: number) => {
-    setInventory(prev =>
-      prev.map(item =>
+    setInventory(prev => {
+      const next = prev.map(item =>
         item.id === id
           ? {
               ...item,
@@ -628,16 +662,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               totalStockValue: newStock * item.averageCost
             }
           : item
-      )
-    );
+      );
+      pushToCloud({ ...stateRef.current, inventory: next });
+      return next;
+    });
     showToast('Stock Updated', 'Inventory count adjusted.', 'info');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteInventoryItem = (id: string) => {
-    setInventory(prev => prev.filter(i => i.id !== id));
+    setInventory(prev => {
+      const next = prev.filter(i => i.id !== id);
+      pushToCloud({ ...stateRef.current, inventory: next });
+      return next;
+    });
     showToast('Item Deleted', 'Inventory item removed.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addOrder = (orderData: Omit<OrderItem, 'id'>) => {
@@ -645,22 +683,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...orderData,
       id: `ord-${Date.now()}`
     };
-    setOrders(prev => [newOrd, ...prev]);
+    setOrders(prev => {
+      const next = [newOrd, ...prev];
+      pushToCloud({ ...stateRef.current, orders: next });
+      return next;
+    });
     showToast('Order Added', `Order ${newOrd.orderNumber} created.`, 'success');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateOrderStatus = (id: string, status: OrderItem['status']) => {
-    setOrders(prev => prev.map(o => (o.id === id ? { ...o, status } : o)));
+    setOrders(prev => {
+      const next = prev.map(o => (o.id === id ? { ...o, status } : o));
+      pushToCloud({ ...stateRef.current, orders: next });
+      return next;
+    });
     showToast('Order Status Updated', `Order marked as ${status}`, 'info');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteOrder = (id: string) => {
     deletedIdsRef.current.add(id);
-    setOrders(prev => prev.filter(o => o.id !== id));
+    setOrders(prev => {
+      const next = prev.filter(o => o.id !== id);
+      pushToCloud({ ...stateRef.current, orders: next });
+      return next;
+    });
     showToast('Order Deleted', 'Order record removed permanently.', 'warning');
-    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearOrdersHistory = () => {

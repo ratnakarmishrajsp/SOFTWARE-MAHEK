@@ -58,14 +58,17 @@ export const HomeDashboard: React.FC = () => {
   const sevenDaysAgoStr = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0];
   const thirtyDaysAgoStr = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0];
 
+  const normalizeDate = (dStr: string) => (dStr ? dStr.split('T')[0].trim() : '');
+
   const filterByDateRange = (itemDate: string) => {
-    if (dateFilter === 'today') return itemDate === todayStr;
-    if (dateFilter === 'yesterday') return itemDate === yesterdayStr;
-    if (dateFilter === '7days') return itemDate >= sevenDaysAgoStr;
-    if (dateFilter === '30days') return itemDate >= thirtyDaysAgoStr;
+    const cleanDate = normalizeDate(itemDate);
+    if (dateFilter === 'today') return cleanDate === todayStr;
+    if (dateFilter === 'yesterday') return cleanDate === yesterdayStr;
+    if (dateFilter === '7days') return cleanDate >= sevenDaysAgoStr;
+    if (dateFilter === '30days') return cleanDate >= thirtyDaysAgoStr;
     if (dateFilter === 'custom') {
-      if (customStartDate && itemDate < customStartDate) return false;
-      if (customEndDate && itemDate > customEndDate) return false;
+      if (customStartDate && cleanDate < customStartDate) return false;
+      if (customEndDate && cleanDate > customEndDate) return false;
       return true;
     }
     return true; // 'all'
