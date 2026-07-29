@@ -239,10 +239,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isPullingRef.current = true;
     if (!silent) setIsSyncing(true);
     try {
-      const res = await fetchWithTimeout(API_URL + '?t=' + Date.now(), {}, 4000); // 4s timeout fast fail
+      const res = await fetchWithTimeout(API_URL + '?t=' + Date.now(), {}, 3000); // 3s timeout fast fail
       if (res.ok) {
-        const data = await res.json();
-        // Check if server has ANY meaningful data (not just plEntries)
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          return false; // Not JSON response (e.g. 404 HTML page) — fail fast
+        }
+
+        if (!data || typeof data !== 'object') return false;
+
+        // Check if server has ANY meaningful data
         const serverHasData = (
           (Array.isArray(data.plEntries) && data.plEntries.length > 0) ||
           (Array.isArray(data.expenses) && data.expenses.length > 0) ||

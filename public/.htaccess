@@ -5,7 +5,7 @@
 
 RewriteEngine On
 
-# Allow direct access to api.php and static json files without SPA rewrites
+# Allow direct access to api.php and mahekh_data.json
 RewriteRule ^api\.php$ - [L]
 RewriteRule ^mahekh_data\.json$ - [L]
 
@@ -18,13 +18,14 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} (.+)/$
 RewriteRule ^ %1 [L,R=301]
 
-# Send Requests To Front Controller (SPA fallback)...
+# Send Requests To Front Controller (SPA fallback ONLY for HTML navigation routes, NOT for static files)...
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_URI} !^.*\.(js|css|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$ [NC]
 RewriteRule ^ index.html [L]
 
 # ── Cache Control Headers ──────────────────────────────────────────
-# Never cache index.html or api.php
+# Never cache index.html or api.php (ensures latest version always loads)
 <FilesMatch "^(index\.html|api\.php)$">
   Header set Cache-Control "no-cache, no-store, must-revalidate"
   Header set Pragma "no-cache"
