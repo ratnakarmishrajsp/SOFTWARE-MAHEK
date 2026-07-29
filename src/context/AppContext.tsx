@@ -319,8 +319,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── AUTO-PULL on app open, tab focus & periodic background polling (every 10s) ───
   useEffect(() => {
-    // Always pull from server when app opens — silent
-    pullFromCloud(undefined, true);
+    // Delay initial cloud pull by 200ms so React paints local data instantly first
+    const initTimer = setTimeout(() => {
+      pullFromCloud(undefined, true);
+    }, 200);
 
     // Periodic polling every 10 seconds for real-time multi-device sync
     const pollInterval = setInterval(() => {
@@ -340,6 +342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     document.addEventListener('visibilitychange', handleFocusOrVisible);
 
     return () => {
+      clearTimeout(initTimer);
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocusOrVisible);
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
