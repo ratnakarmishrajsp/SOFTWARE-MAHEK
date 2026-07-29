@@ -132,15 +132,6 @@ export const ExpenseModule: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {expenses.length > 0 && (
-            <button
-              onClick={() => clearExpenseHistory()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear History</span>
-            </button>
-          )}
           <button
             onClick={openShiprocketQuickModal}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 font-bold text-xs transition-all cursor-pointer"

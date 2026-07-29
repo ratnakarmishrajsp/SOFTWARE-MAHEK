@@ -210,6 +210,7 @@ export const PLModule: React.FC = () => {
       updatePLEntry(editingEntryId, payload);
     } else {
       addPLEntry(payload);
+      setDateFilter('all');
     }
     setEditingEntryId(null);
     setIsQuickAddOpen(false);
@@ -316,17 +317,6 @@ export const PLModule: React.FC = () => {
             >
               <MessageCircle className="w-4 h-4 text-emerald-500" />
               <span>Share Summary on WhatsApp</span>
-            </button>
-          )}
-
-          {plEntries.length > 0 && (
-            <button
-              onClick={() => clearPLHistory()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all cursor-pointer"
-              title="Clear all P&L records"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear P&L History</span>
             </button>
           )}
 

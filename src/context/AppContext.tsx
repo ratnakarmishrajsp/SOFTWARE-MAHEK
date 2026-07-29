@@ -241,12 +241,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
         if (serverHasData) {
-          if (Array.isArray(data.plEntries))    setPlEntries(data.plEntries);
-          if (Array.isArray(data.expenses))     setExpenses(data.expenses);
-          if (Array.isArray(data.rawPurchases)) setRawPurchases(data.rawPurchases);
+          if (Array.isArray(data.plEntries)) {
+            setPlEntries(prev => {
+              const serverIds = new Set(data.plEntries.map((x: PLEntry) => x.id));
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
+              return [...unsavedLocal, ...data.plEntries];
+            });
+          }
+          if (Array.isArray(data.expenses)) {
+            setExpenses(prev => {
+              const serverIds = new Set(data.expenses.map((x: ExpenseEntry) => x.id));
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
+              return [...unsavedLocal, ...data.expenses];
+            });
+          }
+          if (Array.isArray(data.rawPurchases)) {
+            setRawPurchases(prev => {
+              const serverIds = new Set(data.rawPurchases.map((x: RawMaterialPurchase) => x.id));
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
+              return [...unsavedLocal, ...data.rawPurchases];
+            });
+          }
           if (Array.isArray(data.products))     setProducts(data.products);
           if (Array.isArray(data.inventory))    setInventory(data.inventory);
-          if (Array.isArray(data.orders))       setOrders(data.orders);
+          if (Array.isArray(data.orders)) {
+            setOrders(prev => {
+              const serverIds = new Set(data.orders.map((x: OrderItem) => x.id));
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
+              return [...unsavedLocal, ...data.orders];
+            });
+          }
           if (data.settings)                    setSettings(data.settings);
           const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
           setLastSyncedAt(nowStr);
@@ -382,7 +406,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newEntry: PLEntry = { ...entryData, id: `pl-${Date.now()}` };
     setPlEntries(prev => [newEntry, ...prev]);
     showToast('P&L Entry Created', `Added: ${newEntry.productName} (${newEntry.orders} orders)`, 'success');
-    // auto-push useEffect (3s debounce) will handle syncing to server
+    // Trigger immediate background push to server
+    setTimeout(() => { pushToCloud(); }, 100);
   };
 
   const updatePLEntry = (id: string, updatedData: Partial<PLEntry>) => {

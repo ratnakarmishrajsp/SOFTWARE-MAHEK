@@ -91,17 +91,6 @@ export const RawMaterialModule: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {rawPurchases.length > 0 && (
-            <button
-              onClick={() => clearRawPurchasesHistory()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all cursor-pointer"
-              title="Clear raw purchase history"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear Sourcing History</span>
-            </button>
-          )}
-
           <button
             onClick={() => setIsAddAttarModalOpen(true)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-amber-700 dark:text-amber-400 font-semibold text-xs transition-all cursor-pointer"

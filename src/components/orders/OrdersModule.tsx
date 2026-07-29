@@ -91,17 +91,6 @@ export const OrdersModule: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {orders.length > 0 && (
-            <button
-              onClick={() => clearOrdersHistory()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all cursor-pointer"
-              title="Clear all order records"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear Orders History</span>
-            </button>
-          )}
-
           <button
             onClick={() => {
               setPaymentType('Prepaid');
