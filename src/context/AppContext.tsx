@@ -207,6 +207,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('mahekh_last_synced', nowStr);
         showToast('✅ Server Sync Done', `Data saved to server (${nowStr})`, 'success');
         return true;
+      } else if (res.status === 403) {
+        showToast('⚠️ 403 Forbidden', 'Hostinger server blocked access. Please check public/ folder permissions (chmod 755).', 'error');
+      } else {
+        showToast('⚠️ Server Error', `Server returned HTTP ${res.status}`, 'warning');
       }
     } catch {
       showToast('⚠️ Sync Error', 'Could not reach server. Data is safe in local storage.', 'warning');
@@ -255,6 +259,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (!silent) {
           showToast('ℹ️ No Server Data', 'Server pe koi data nahi mila. Local data use ho raha hai.', 'info');
         }
+      } else if (res.status === 403 && !silent) {
+        showToast('⚠️ 403 Forbidden', 'Hostinger server access blocked. Check file permissions (chmod 755).', 'error');
       }
     } catch {
       if (!silent) showToast('⚠️ Connection Error', 'Server se connect nahi ho saka.', 'warning');

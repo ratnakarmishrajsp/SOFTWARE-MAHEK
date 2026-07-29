@@ -1,5 +1,13 @@
-Options -MultiViews -Indexes
+# Safe Options directive inside module check to avoid 403 Forbidden on shared hosting
+<IfModule mod_negotiation.c>
+  Options -MultiViews
+</IfModule>
+
 RewriteEngine On
+
+# Allow direct access to api.php and static json files without SPA rewrites
+RewriteRule ^api\.php$ - [L]
+RewriteRule ^mahekh_data\.json$ - [L]
 
 # Handle Authorization Header
 RewriteCond %{HTTP:Authorization} .
@@ -16,14 +24,14 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.html [L]
 
 # ── Cache Control Headers ──────────────────────────────────────────
-# Never cache index.html (so users always get latest app version)
-<FilesMatch "^index\.html$">
+# Never cache index.html or api.php
+<FilesMatch "^(index\.html|api\.php)$">
   Header set Cache-Control "no-cache, no-store, must-revalidate"
   Header set Pragma "no-cache"
   Header set Expires "0"
 </FilesMatch>
 
-# Cache hashed JS/CSS assets for 1 year (they are content-addressed)
+# Cache hashed JS/CSS assets for 1 year
 <FilesMatch "\.(js|css)$">
   Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>

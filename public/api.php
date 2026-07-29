@@ -1,14 +1,16 @@
 <?php
 /**
- * Mahekh ERP - Simple Data API
- * Saves and serves all business data from the server.
- * No authentication needed (private business tool).
+ * Mahekh ERP - Data API
+ * Saves and serves business data on hostinger/apache server.
  */
 
-// Allow cross-origin requests (same domain, but just in case)
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
+
+// Allow cross-origin requests
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma');
 header('Content-Type: application/json; charset=utf-8');
 
 // Handle preflight
@@ -22,44 +24,30 @@ $dataFile = __DIR__ . '/mahekh_data.json';
 // ── GET: Return all saved data ──────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
-    // Debug mode: ?debug=1 returns server diagnostics
+    // Debug mode: ?debug=1
     if (isset($_GET['debug'])) {
         echo json_encode([
             'dataFile'    => $dataFile,
             'fileExists'  => file_exists($dataFile),
             'fileSize'    => file_exists($dataFile) ? filesize($dataFile) : 0,
+            'fileReadable'=> file_exists($dataFile) ? is_readable($dataFile) : false,
+            'fileWritable'=> file_exists($dataFile) ? is_writable($dataFile) : false,
             'dirWritable' => is_writable(__DIR__),
             'phpVersion'  => PHP_VERSION,
-            'savedAt'     => file_exists($dataFile)
-                ? (json_decode(file_get_contents($dataFile), true)['savedAt'] ?? 'unknown')
-                : null,
         ]);
         exit();
     }
 
     if (file_exists($dataFile)) {
-        $content = file_get_contents($dataFile);
-        $decoded = json_decode($content, true);
-        if ($decoded !== null) {
+        $content = @file_get_contents($dataFile);
+        if ($content !== false && !empty(trim($content))) {
             echo $content;
-        } else {
-            echo json_encode(emptyData());
-        }
-    } else {
-        // Try to create an empty file to check write permissions
-        $testWrite = @file_put_contents($dataFile, json_encode(emptyData(), JSON_PRETTY_PRINT));
-        if ($testWrite !== false) {
-            echo json_encode(emptyData());
-        } else {
-            // Directory is not writable — return error with hint
-            http_response_code(500);
-            echo json_encode([
-                'error'   => 'Server directory is not writable. Set chmod 755 on public/ folder in Hostinger File Manager.',
-                'path'    => __DIR__,
-                'writable'=> is_writable(__DIR__)
-            ]);
+            exit();
         }
     }
+
+    // Return empty data structure default
+    echo json_encode(emptyData());
     exit();
 }
 
@@ -74,33 +62,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-    // Check write permission first
-    if (!is_writable(__DIR__)) {
-        http_response_code(500);
-        echo json_encode([
-            'error'   => 'Directory not writable. Go to Hostinger File Manager → public/ → chmod 755.',
-            'path'    => __DIR__,
-            'writable'=> false
-        ]);
-        exit();
-    }
-
-    // Merge with existing to avoid data loss from partial saves
+    // Merge with existing data if present
     $existing = [];
     if (file_exists($dataFile)) {
-        $existingContent = file_get_contents($dataFile);
-        $existing = json_decode($existingContent, true) ?? [];
+        $existingContent = @file_get_contents($dataFile);
+        if ($existingContent) {
+            $existing = json_decode($existingContent, true) ?? [];
+        }
     }
 
     $merged = array_merge($existing, $data, ['savedAt' => date('c')]);
 
-    $written = file_put_contents(
+    $written = @file_put_contents(
         $dataFile,
         json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-        LOCK_EX   // <-- prevents data corruption on concurrent saves
+        LOCK_EX
     );
 
     if ($written !== false) {
+        @chmod($dataFile, 0644);
         echo json_encode([
             'success' => true,
             'savedAt' => $merged['savedAt'],
@@ -109,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         http_response_code(500);
         echo json_encode([
-            'error'   => 'file_put_contents failed. Check Hostinger file permissions.',
+            'error'   => 'Cannot write file. Set public/ folder permission chmod 755 in Hostinger File Manager.',
             'path'    => $dataFile,
             'writable'=> is_writable(__DIR__)
         ]);
@@ -132,4 +112,3 @@ function emptyData(): array {
         'savedAt'      => null
     ];
 }
-
