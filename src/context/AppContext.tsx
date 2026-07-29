@@ -146,6 +146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isPullingRef = useRef(false);
   const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialMountRef = useRef(true);
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   // Initialize state from LocalStorage
   const getInitial = <T,>(key: string, defaultVal: T): T => {
@@ -265,22 +266,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(data.plEntries)) {
             setPlEntries(prev => {
               const serverIds = new Set(data.plEntries.map((x: PLEntry) => x.id));
-              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
-              return [...unsavedLocal, ...data.plEntries];
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id) && !deletedIdsRef.current.has(x.id));
+              const validServer = data.plEntries.filter((x: PLEntry) => !deletedIdsRef.current.has(x.id));
+              return [...unsavedLocal, ...validServer];
             });
           }
           if (Array.isArray(data.expenses)) {
             setExpenses(prev => {
               const serverIds = new Set(data.expenses.map((x: ExpenseEntry) => x.id));
-              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
-              return [...unsavedLocal, ...data.expenses];
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id) && !deletedIdsRef.current.has(x.id));
+              const validServer = data.expenses.filter((x: ExpenseEntry) => !deletedIdsRef.current.has(x.id));
+              return [...unsavedLocal, ...validServer];
             });
           }
           if (Array.isArray(data.rawPurchases)) {
             setRawPurchases(prev => {
               const serverIds = new Set(data.rawPurchases.map((x: RawMaterialPurchase) => x.id));
-              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
-              return [...unsavedLocal, ...data.rawPurchases];
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id) && !deletedIdsRef.current.has(x.id));
+              const validServer = data.rawPurchases.filter((x: RawMaterialPurchase) => !deletedIdsRef.current.has(x.id));
+              return [...unsavedLocal, ...validServer];
             });
           }
           if (Array.isArray(data.products))     setProducts(data.products);
@@ -288,8 +292,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(data.orders)) {
             setOrders(prev => {
               const serverIds = new Set(data.orders.map((x: OrderItem) => x.id));
-              const unsavedLocal = prev.filter(x => !serverIds.has(x.id));
-              return [...unsavedLocal, ...data.orders];
+              const unsavedLocal = prev.filter(x => !serverIds.has(x.id) && !deletedIdsRef.current.has(x.id));
+              const validServer = data.orders.filter((x: OrderItem) => !deletedIdsRef.current.has(x.id));
+              return [...unsavedLocal, ...validServer];
             });
           }
           if (data.settings)                    setSettings(data.settings);
@@ -437,17 +442,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updatePLEntry = (id: string, updatedData: Partial<PLEntry>) => {
     setPlEntries(prev => prev.map(item => (item.id === id ? { ...item, ...updatedData } : item)));
     showToast('Entry Updated', 'Profit & Loss record was successfully updated.', 'info');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deletePLEntry = (id: string) => {
+    deletedIdsRef.current.add(id);
     setPlEntries(prev => prev.filter(item => item.id !== id));
     showToast('Entry Deleted', 'P&L record removed permanently.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
-
 
   const clearPLHistory = () => {
     setPlEntries([]);
     showToast('P&L History Cleared', 'All P&L entries have been permanently removed.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const reconcilePLEntry = (
@@ -509,6 +517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
     showToast('RTO Reconciliation Complete', 'Actual profit & delivery counts recalculated.', 'success');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addExpense = (expenseData: Omit<ExpenseEntry, 'id'>) => {
@@ -518,16 +527,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setExpenses(prev => [newExp, ...prev]);
     showToast('Expense Added', `₹${newExp.amount} categorized under ${newExp.category}`, 'success');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteExpense = (id: string) => {
+    deletedIdsRef.current.add(id);
     setExpenses(prev => prev.filter(e => e.id !== id));
     showToast('Expense Deleted', 'Expense record removed permanently.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearExpenseHistory = () => {
     setExpenses([]);
     showToast('Expense History Cleared', 'All expense entries removed.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addRawPurchase = (purchaseData: Omit<RawMaterialPurchase, 'id'>) => {
@@ -567,16 +580,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     showToast('Raw Material Purchased', `Added ${purchaseData.quantity} ${purchaseData.unit} of ${purchaseData.attarName}`, 'success');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteRawPurchase = (id: string) => {
+    deletedIdsRef.current.add(id);
     setRawPurchases(prev => prev.filter(r => r.id !== id));
     showToast('Purchase Deleted', 'Raw material purchase record removed.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearRawPurchasesHistory = () => {
     setRawPurchases([]);
     showToast('Raw Material History Cleared', 'All raw material purchase records removed.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addProduct = (prod: Omit<Product, 'id'>) => {
@@ -586,16 +603,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setProducts(prev => [...prev, newProd]);
     showToast('Product Added', `${newProd.name} added to catalog`, 'success');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateProduct = (id: string, prod: Partial<Product>) => {
     setProducts(prev => prev.map(p => (p.id === id ? { ...p, ...prod } : p)));
     showToast('Product Updated', 'Product details saved.', 'info');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
     showToast('Product Deleted', 'Product SKU removed from catalog.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateInventoryStock = (id: string, newStock: number) => {
@@ -611,11 +631,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
     showToast('Stock Updated', 'Inventory count adjusted.', 'info');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteInventoryItem = (id: string) => {
     setInventory(prev => prev.filter(i => i.id !== id));
     showToast('Item Deleted', 'Inventory item removed.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const addOrder = (orderData: Omit<OrderItem, 'id'>) => {
@@ -625,16 +647,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setOrders(prev => [newOrd, ...prev]);
     showToast('Order Added', `Order ${newOrd.orderNumber} created.`, 'success');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const updateOrderStatus = (id: string, status: OrderItem['status']) => {
     setOrders(prev => prev.map(o => (o.id === id ? { ...o, status } : o)));
     showToast('Order Status Updated', `Order marked as ${status}`, 'info');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const deleteOrder = (id: string) => {
+    deletedIdsRef.current.add(id);
     setOrders(prev => prev.filter(o => o.id !== id));
     showToast('Order Deleted', 'Order record removed permanently.', 'warning');
+    setTimeout(() => { pushToCloud(); }, 50);
   };
 
   const clearOrdersHistory = () => {
