@@ -53,6 +53,7 @@ export interface PLEntry {
 }
 
 export type ExpenseCategory =
+  | 'Shiprocket Recharge'
   | 'Meta Ads'
   | 'Google Ads'
   | 'Salary'
@@ -142,6 +143,7 @@ export interface OrderItem {
   items: { productName: string; quantity: number; price: number }[];
   totalAmount: number;
   paymentType: 'COD' | 'Prepaid';
+  paymentRef?: string; // UPI UTR or Payment Gateway Txn Ref
   status: 'Delivered' | 'Pending' | 'Cancelled' | 'RTO' | 'Shipped';
   trackingNumber: string;
   expectedDeliveryDate: string;

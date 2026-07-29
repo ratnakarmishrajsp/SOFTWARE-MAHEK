@@ -225,7 +225,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch(API_URL + '?t=' + Date.now()); // cache-bust
       if (res.ok) {
         const data = await res.json();
-        const serverHasData = Array.isArray(data.plEntries) && data.plEntries.length > 0;
+        // Check if server has ANY meaningful data (not just plEntries)
+        const serverHasData = (
+          (Array.isArray(data.plEntries) && data.plEntries.length > 0) ||
+          (Array.isArray(data.expenses) && data.expenses.length > 0) ||
+          (Array.isArray(data.rawPurchases) && data.rawPurchases.length > 0) ||
+          (Array.isArray(data.products) && data.products.length > 0) ||
+          (Array.isArray(data.inventory) && data.inventory.length > 0) ||
+          (Array.isArray(data.orders) && data.orders.length > 0) ||
+          (data.settings && data.settings !== null)
+        );
 
         if (serverHasData) {
           if (Array.isArray(data.plEntries))    setPlEntries(data.plEntries);
@@ -239,7 +248,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLastSyncedAt(nowStr);
           localStorage.setItem('mahekh_last_synced', nowStr);
           if (!silent) {
-            showToast('✅ Data Loaded', `${data.plEntries.length} P&L entries fetched from server`, 'success');
+            const totalEntries = (data.plEntries?.length || 0) + (data.expenses?.length || 0) + (data.orders?.length || 0);
+            showToast('✅ Data Synced', `${totalEntries} records fetched from server`, 'success');
           }
           return true;
         } else if (!silent) {
@@ -256,10 +266,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── AUTO-PULL on app open ─────────────────────────────────────────────────
+  // ── AUTO-PULL on app open, tab focus & periodic background polling (every 10s) ───
   useEffect(() => {
-    // Always pull from server when app opens — silent (no toast on success if server is empty)
+    // Always pull from server when app opens — silent
     pullFromCloud(undefined, true);
+
+    // Periodic polling every 10 seconds for real-time multi-device sync
+    const pollInterval = setInterval(() => {
+      if (!isSyncing && !isPullingRef.current && autoSyncEnabledRef.current) {
+        pullFromCloud(undefined, true);
+      }
+    }, 10000);
+
+    // Auto pull when switching back to tab/app (mobile & laptop)
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible' && !isSyncing && !isPullingRef.current) {
+        pullFromCloud(undefined, true);
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

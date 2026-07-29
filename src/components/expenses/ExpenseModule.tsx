@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { ExpenseEntry, ExpenseCategory } from '../../types';
-import { Receipt, Plus, Search, Trash2, Zap, RotateCcw, User } from 'lucide-react';
+import { Receipt, Plus, Search, Trash2, Zap, RotateCcw, User, Truck } from 'lucide-react';
 
 export type DateFilterType = 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
 
 const DEFAULT_SUBCATEGORIES: Partial<Record<ExpenseCategory, string>> = {
+  'Shiprocket Recharge': 'Shiprocket Wallet Shipping Balance Recharge',
   'Meta Ads': 'Instagram Reels Attar Ad Campaign',
   'Google Ads': 'Google Search & Shopping Ad Campaign',
   'Packaging Supplies': 'Corrugated Boxes, Bubble Wrap & Tape Bulk Order',
@@ -40,6 +41,15 @@ export const ExpenseModule: React.FC = () => {
   const handleCategoryChange = (newCat: ExpenseCategory) => {
     setCategory(newCat);
     setSubCategory(DEFAULT_SUBCATEGORIES[newCat] || '');
+  };
+
+  const openShiprocketQuickModal = () => {
+    setCategory('Shiprocket Recharge');
+    setSubCategory('Shiprocket Wallet Shipping Balance Recharge');
+    setAmount(2000);
+    setPaymentMethod('UPI');
+    setNotes('Shiprocket Shipping Wallet Top-up');
+    setIsModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,6 +110,9 @@ export const ExpenseModule: React.FC = () => {
   const adSpendSum = activeExpenses
     .filter(e => e.category === 'Meta Ads' || e.category === 'Google Ads')
     .reduce((sum, e) => sum + e.amount, 0);
+  const shiprocketSum = activeExpenses
+    .filter(e => e.category === 'Shiprocket Recharge')
+    .reduce((sum, e) => sum + e.amount, 0);
 
   return (
     <div className="space-y-6 pb-12">
@@ -108,13 +121,13 @@ export const ExpenseModule: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-semibold uppercase tracking-wider mb-1">
             <Receipt className="w-4 h-4" />
-            <span>Overhead & Ad Expenditure</span>
+            <span>Overhead, Shipping & Ad Expenditure</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
             Expense Manager
           </h1>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Track Meta Ads recharges, office rent, staff salaries, and packing expenditures.
+            Track Meta Ads, Shiprocket wallet recharges, office rent, staff salaries, and packing expenditures.
           </p>
         </div>
 
@@ -129,6 +142,13 @@ export const ExpenseModule: React.FC = () => {
             </button>
           )}
           <button
+            onClick={openShiprocketQuickModal}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 font-bold text-xs transition-all cursor-pointer"
+          >
+            <Truck className="w-4 h-4" />
+            <span>⚡ Log Shiprocket Recharge</span>
+          </button>
+          <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
           >
@@ -139,11 +159,20 @@ export const ExpenseModule: React.FC = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-2xl glass-card border border-slate-200 dark:border-slate-800">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Expenses Logged ({dateFilter})</span>
           <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{formatINR(totalExpenseSum)}</div>
           <span className="text-[10px] text-slate-500 dark:text-slate-400">{activeExpenses.length} vouchers recorded</span>
+        </div>
+
+        <div className="p-4 rounded-2xl glass-card border border-slate-200 dark:border-slate-800">
+          <span className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1.5">
+            <Truck className="w-4 h-4 text-purple-500" />
+            Shiprocket Shipping Recharges
+          </span>
+          <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{formatINR(shiprocketSum)}</div>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">Courier wallet top-ups</span>
         </div>
 
         <div className="p-4 rounded-2xl glass-card border border-slate-200 dark:border-slate-800">
@@ -339,6 +368,7 @@ export const ExpenseModule: React.FC = () => {
                     onChange={e => handleCategoryChange(e.target.value as ExpenseCategory)}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 font-bold"
                   >
+                    <option value="Shiprocket Recharge">🚚 Shiprocket Recharge (Wallet)</option>
                     <option value="Meta Ads">Meta Ads</option>
                     <option value="Google Ads">Google Ads</option>
                     <option value="Packaging Supplies">Packaging Supplies</option>
