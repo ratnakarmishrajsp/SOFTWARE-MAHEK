@@ -191,16 +191,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 4000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (e) {
+      clearTimeout(id);
+      throw e;
+    }
+  };
+
   // ── PUSH: save current state to server ───────────────────────────────────
   const pushToCloud = useCallback(async (_overrideId?: string): Promise<boolean> => {
     setIsSyncing(true);
     try {
       const payload = { plEntries, expenses, rawPurchases, products, inventory, orders, settings };
-      const res = await fetch(API_URL, {
+      const res = await fetchWithTimeout(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      });
+      }, 4000);
       if (res.ok) {
         const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
         setLastSyncedAt(nowStr);
@@ -226,7 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isPullingRef.current = true;
     if (!silent) setIsSyncing(true);
     try {
-      const res = await fetch(API_URL + '?t=' + Date.now()); // cache-bust
+      const res = await fetchWithTimeout(API_URL + '?t=' + Date.now(), {}, 4000); // 4s timeout fast fail
       if (res.ok) {
         const data = await res.json();
         // Check if server has ANY meaningful data (not just plEntries)

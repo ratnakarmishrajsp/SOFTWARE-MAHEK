@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ShoppingBag, Plus, Search, Trash2, RotateCcw, X, CreditCard, Truck, CheckCircle } from 'lucide-react';
+import { ShoppingBag, Plus, Search, Trash2, X, CreditCard, Truck, CheckCircle } from 'lucide-react';
 
 export const OrdersModule: React.FC = () => {
-  const { orders, addOrder, updateOrderStatus, deleteOrder, clearOrdersHistory, products, globalSearch } = useApp();
+  const { orders, addOrder, updateOrderStatus, deleteOrder, products, globalSearch } = useApp();
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);

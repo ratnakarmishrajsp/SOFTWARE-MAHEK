@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { ExpenseEntry, ExpenseCategory } from '../../types';
-import { Receipt, Plus, Search, Trash2, Zap, RotateCcw, User, Truck } from 'lucide-react';
+import { Receipt, Plus, Search, Trash2, Zap, User, Truck } from 'lucide-react';
 
 export type DateFilterType = 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
 
@@ -18,7 +18,7 @@ const DEFAULT_SUBCATEGORIES: Partial<Record<ExpenseCategory, string>> = {
 };
 
 export const ExpenseModule: React.FC = () => {
-  const { expenses, addExpense, deleteExpense, clearExpenseHistory, globalSearch } = useApp();
+  const { expenses, addExpense, deleteExpense, globalSearch } = useApp();
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);

@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { RawMaterialPurchase } from '../../types';
-import { FlaskConical, Plus, Search, Droplet, PlusCircle, X, Trash2, RotateCcw } from 'lucide-react';
+import { FlaskConical, Plus, Search, Droplet, PlusCircle, X, Trash2 } from 'lucide-react';
 
 export const RawMaterialModule: React.FC = () => {
   const {
     rawPurchases,
     addRawPurchase,
     deleteRawPurchase,
-    clearRawPurchasesHistory,
     settings,
     addAttarName,
     globalSearch
